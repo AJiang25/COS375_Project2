@@ -435,23 +435,135 @@ Simulator::Instruction Simulator::simCommit(Instruction inst, REGS &regData) {
 // You may find it useful to call functional simulation functions above
 
 Simulator::Instruction Simulator::simIF(uint64_t PC) {
-    throw std::runtime_error("simIF not implemented yet"); // TODO implement IF 
+    Instruction inst;
+    try {
+        inst = simFetch(PC, memory);
+        inst.status = NORMAL;
+        inst.nextPC = PC + 4;
+    } catch (...) {
+        inst.PC = PC;
+        inst.instruction = 0;
+        inst.isLegal = false;
+        inst.memException = true;
+        inst.status = SQUASHED;
+        inst.nextPC = EXCEPTION_HANDLER;
+    }
+    return inst;
 }
 
 Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
-    throw std::runtime_error("simID not implemented yet"); // TODO implement ID
+    inst = simDecode(inst);
+    inst.instructionID = din++;
+
+    // Handle Exceptions?
+    if (!inst.isLegal) {
+        inst.status = SQUASHED;
+        inst.nextPC = EXCEPTION_HANDLER;
+        return inst;
+    }
+
+    if (inst.isHalt) {
+        inst.status = IDLE;
+        return inst;
+    }
+
+    if (inst.isNop) {
+        inst.status = NORMAL;
+        return inst;
+    }
+
+    inst = simOperandCollection(inst, regData);
+    inst.status = NORMAL;
+    return inst;
 }
 
 Simulator::Instruction Simulator::simEX(Simulator::Instruction inst) {
-    throw std::runtime_error("simEX not implemented yet"); // TODO implement EX
+    if (inst.memException || !inst.isLegal) {
+        inst.status = SQUASHED;
+        inst.nextPC = EXCEPTION_HANDLER;
+        return inst;
+    }
+
+    if (inst.isHalt) {
+        inst.status = IDLE;
+        return inst;
+    }
+
+    if (inst.isNop) {
+        inst.status = NORMAL;
+        inst.nextPC = inst.PC + 4;
+        return inst;
+    }
+
+    inst = simNextPCResolution(inst);
+
+    if (inst.doesArithLogic) {
+        inst = simArithLogic(inst);
+    }
+
+    inst.status = NORMAL;
+    return inst;
 }
 
 Simulator::Instruction Simulator::simMEM(Simulator::Instruction inst) {
-    throw std::runtime_error("simMEM not implemented yet"); // TODO implement MEM
+    if (!inst.isLegal) {
+        inst.status = SQUASHED;
+        inst.nextPC = EXCEPTION_HANDLER;
+        return inst;
+    }
+
+    if (inst.isHalt) {
+        inst.status = IDLE;
+        return inst;
+    }
+
+    if (inst.isNop) {
+        inst.status = NORMAL;
+        inst.nextPC = inst.PC + 4;
+        return inst;
+    }
+
+    if (inst.readsMem || inst.writesMem) {
+        inst = simAddrGen(inst);
+
+        try {
+            inst = simMemAccess(inst, memory);
+        } catch (...) {
+            inst.memException = true;
+            inst.status = SQUASHED;
+            inst.nextPC = EXCEPTION_HANDLER;
+            return inst;
+        }
+    }
+    inst.status = NORMAL;
+    return inst;
 }
 
 Simulator::Instruction Simulator::simWB(Simulator::Instruction inst) {
-    throw std::runtime_error("simWB not implemented yet"); // TODO implement WB
+    if (!inst.isLegal || inst.memException) {
+        inst.status = SQUASHED;
+        inst.nextPC = EXCEPTION_HANDLER;
+        return inst;
+    }
+
+    if (inst.isHalt) {
+        inst.status = IDLE;
+        return inst;
+    }
+
+    if (inst.isNop) {
+        inst.status = NORMAL;
+        inst.nextPC = inst.PC + 4;
+        return inst;
+    }
+
+    // Don't write to register x0
+    if (inst.writesRd && inst.rd != 0) {
+        inst = simCommit(inst, regData);
+    }
+
+    inst.status = NORMAL;
+    return inst;
 }
 
 
@@ -463,7 +575,7 @@ Simulator::Instruction Simulator::simInstruction(uint64_t PC) {
     inst.instructionID = din++;
     if (!inst.isLegal || inst.isHalt) return inst;
     inst = simOperandCollection(inst, regData);
-    inst = simNextPCResolution(inst);
+    inst = (inst);
     if (inst.doesArithLogic) inst = simArithLogic(inst);
     if (inst.readsMem || inst.writesMem) {
         inst = simAddrGen(inst);
