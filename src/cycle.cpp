@@ -69,6 +69,14 @@ Status runCycles(uint64_t cycles) {
     
         pipelineInfo.wbInst = nop(BUBBLE);
         pipelineInfo.wbInst = simulator->simWB(pipelineInfo.memInst);
+
+        // WB -> MEM forwarding (load then store)
+        if (!pipelineInfo.exInst.isNop && pipelineInfo.exInst.writesMem &&
+            !pipelineInfo.wbInst.isNop && pipelineInfo.wbInst.readsMem &&
+            pipelineInfo.wbInst.rd != 0 && pipelineInfo.wbInst.rd == pipelineInfo.exInst.rs2) {
+            pipelineInfo.exInst.op2Val = pipelineInfo.wbInst.memResult;
+        }
+
         pipelineInfo.memInst = simulator->simMEM(pipelineInfo.exInst);
         pipelineInfo.exInst = simulator->simEX(pipelineInfo.idInst);
         pipelineInfo.idInst = simulator->simID(pipelineInfo.ifInst);
