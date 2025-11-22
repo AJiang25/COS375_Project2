@@ -28,13 +28,23 @@ void Simulator::dumpRegMem(const std::string& output_name) {
 // Get raw instruction bits from memory
 Simulator::Instruction Simulator::simFetch(uint64_t PC, MemoryStore *myMem) {
     // fetch current instruction
-    uint64_t instruction;
-    myMem->getMemValue(PC, instruction, WORD_SIZE);
-    instruction = (uint32_t)instruction;
-
     Instruction inst;
     inst.PC = PC;
-    inst.instruction = instruction;
+    
+    uint64_t instruction;
+    // myMem->getMemValue(PC, instruction, WORD_SIZE);
+    if (myMem->getMemValue(PC, instruction, WORD_SIZE) != 0) {
+        inst.memException = true; 
+        // chaning to NOT set isLegal = false here, letting it flow to WB to trap
+        inst.instruction = 0; // NOP to be safe while flowing down
+    } else {
+        inst.instruction = (uint32_t)instruction;
+    }
+    // instruction = (uint32_t)instruction;
+
+    // Instruction inst;
+    // inst.PC = PC;
+    // inst.instruction = instruction;
     return inst;
 }
 
@@ -406,16 +416,26 @@ Simulator::Instruction Simulator::simMemAccess(Instruction inst, MemoryStore *my
                     (inst.funct3 == FUNCT3_W || inst.funct3 == FUNCT3_WU) ? WORD_SIZE : DOUBLE_SIZE;
 
     if (inst.readsMem) {
-        uint64_t value;
-        myMem->getMemValue(inst.memAddress, value, size);
-        
+        uint64_t value = 0;
+        int ret = myMem->getMemValue(inst.memAddress, value, size);
+        if (ret != 0) {
+            // memory exception: flag it, but let instruction flow to WB
+            inst.memException = true;
+            return inst;
+        }
+
         if (inst.funct3 == FUNCT3_B || inst.funct3 == FUNCT3_H || inst.funct3 == FUNCT3_W) {
             inst.memResult = sext64(value, size * 8 - 1);
         } else {
             inst.memResult = value;
         }
     } else if (inst.writesMem) {
-        myMem->setMemValue(inst.memAddress, inst.op2Val, size);
+        int ret = myMem->setMemValue(inst.memAddress, inst.op2Val, size);
+        if (ret != 0) {
+            // memory exception on store as well
+            inst.memException = true;
+            return inst;
+        }
     }
 
     return inst;
@@ -434,69 +454,49 @@ Simulator::Instruction Simulator::simCommit(Instruction inst, REGS &regData) {
 // TODO complete the following pipeline stage simulation functions
 // You may find it useful to call functional simulation functions above
 
+// ----------------------
+// Pipeline stage helpers
+// ----------------------
 Simulator::Instruction Simulator::simIF(uint64_t PC) {
-    Instruction inst;
-    try {
-        inst = simFetch(PC, memory);
-        inst.status = NORMAL;
-        inst.nextPC = PC + 4;
-    } catch (...) {
-        inst.PC = PC;
-        inst.instruction = 0;
-        inst.isLegal = false;
-        inst.memException = true;
-        inst.status = SQUASHED;
-        inst.nextPC = EXCEPTION_HANDLER;
-    }
+    // fetch and set default nextPC = PC + 4
+    Instruction inst = simFetch(PC, memory);
+    inst.nextPC = PC + 4;
+    inst.status = NORMAL;
     return inst;
 }
 
 Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
+    // decode, assign control signals
     inst = simDecode(inst);
     inst.instructionID = din++;
 
     // Handle Exceptions?
+    // Illegal instruction: exception handled via EXCEPTION_HANDLER PC
     if (!inst.isLegal) {
-        inst.status = SQUASHED;
         inst.nextPC = EXCEPTION_HANDLER;
+        inst.status = SQUASHED; // normal will fail diff against ref output?
         return inst;
     }
 
-    if (inst.isHalt) {
-        inst.status = IDLE;
-        return inst;
-    }
-
-    if (inst.isNop) {
-        inst.status = NORMAL;
-        return inst;
-    }
-
+    // collect register operands (for ALU, branches, jalr, loads/stores)
     inst = simOperandCollection(inst, regData);
+
+    // branch / jump resolution happens in ID (in some ed post)
+    inst = simNextPCResolution(inst);
+
     inst.status = NORMAL;
     return inst;
 }
 
 Simulator::Instruction Simulator::simEX(Simulator::Instruction inst) {
-    if (inst.memException || !inst.isLegal) {
-        inst.status = SQUASHED;
-        inst.nextPC = EXCEPTION_HANDLER;
-        return inst;
-    }
-
-    if (inst.isHalt) {
-        inst.status = IDLE;
-        return inst;
-    }
-
-    if (inst.isNop) {
+    // if instruction is illegal or alr flagged w/ a memory exception,
+    // just pass through; no extra work
+    if (!inst.isLegal || inst.memException) {
         inst.status = NORMAL;
-        inst.nextPC = inst.PC + 4;
         return inst;
     }
 
-    inst = simNextPCResolution(inst);
-
+    // for normal instructions that perform ALU work, do  here
     if (inst.doesArithLogic) {
         inst = simArithLogic(inst);
     }
@@ -506,54 +506,36 @@ Simulator::Instruction Simulator::simEX(Simulator::Instruction inst) {
 }
 
 Simulator::Instruction Simulator::simMEM(Simulator::Instruction inst) {
-    if (!inst.isLegal) {
-        inst.status = SQUASHED;
-        inst.nextPC = EXCEPTION_HANDLER;
-        return inst;
-    }
-
-    if (inst.isHalt) {
-        inst.status = IDLE;
-        return inst;
-    }
-
-    if (inst.isNop) {
+    // not doing anything extra for illegal, mem-exception, HALT, or NOP here
+    if (!inst.isLegal || inst.memException) {
         inst.status = NORMAL;
-        inst.nextPC = inst.PC + 4;
         return inst;
     }
 
     if (inst.readsMem || inst.writesMem) {
         inst = simAddrGen(inst);
-
-        try {
-            inst = simMemAccess(inst, memory);
-        } catch (...) {
-            inst.memException = true;
-            inst.status = SQUASHED;
-            inst.nextPC = EXCEPTION_HANDLER;
-            return inst;
-        }
+        inst = simMemAccess(inst, memory);
+        // simMemAccess will set inst.memException on error
     }
+
     inst.status = NORMAL;
     return inst;
 }
 
 Simulator::Instruction Simulator::simWB(Simulator::Instruction inst) {
+    // illegal instructions + memory exceptions trigger a trap to 0x8000
+    // when they reach WB; don't write back to the architectural state
     if (!inst.isLegal || inst.memException) {
-        inst.status = SQUASHED;
         inst.nextPC = EXCEPTION_HANDLER;
+        inst.status = SQUASHED; // normal will fail diff against ref output?
         return inst;
     }
 
-    if (inst.isHalt) {
-        inst.status = IDLE;
-        return inst;
-    }
-
-    if (inst.isNop) {
-        inst.status = NORMAL;
+    // HALT / NOP = real instructions that don't modify registers
+    if (inst.isHalt || inst.isNop) {
+        // just for completeness, keeping PC+4 as fall-through (not act used after HALT)
         inst.nextPC = inst.PC + 4;
+        inst.status = NORMAL;
         return inst;
     }
 
@@ -575,7 +557,8 @@ Simulator::Instruction Simulator::simInstruction(uint64_t PC) {
     inst.instructionID = din++;
     if (!inst.isLegal || inst.isHalt) return inst;
     inst = simOperandCollection(inst, regData);
-    inst = (inst);
+    // inst = (inst); // this im assuming is a typo? im so lost
+    inst = simNextPCResolution(inst);
     if (inst.doesArithLogic) inst = simArithLogic(inst);
     if (inst.readsMem || inst.writesMem) {
         inst = simAddrGen(inst);
