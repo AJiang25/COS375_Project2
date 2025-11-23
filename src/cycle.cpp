@@ -257,15 +257,19 @@ Status runCycles(uint64_t cycles) {
                 }
             }
 
+            // Branch detection uses opcode, not predicted target
+            bool isBranchInstr = (idOut.opcode == OP_BRANCH);
+            bool isJalrInstr   = (idOut.opcode == OP_JALR);
+            bool branchLike    = isBranchInstr || isJalrInstr;
+
             // detect branch-dependent stalls (arith-branch and load-branch)
-            bool isBranchInstr = (!idOut.isNop && !idOut.isHalt && idOut.nextPC != idOut.PC + 4);
-            if (isBranchInstr) {
+            if (branchLike) {
                 bool dependsOnEXLoad = (!oldEX.isNop && oldEX.readsMem && oldEX.rd != 0 &&
                                         ((idOut.readsRs1 && idOut.rs1 == oldEX.rd) ||
-                                         (idOut.readsRs2 && idOut.rs2 == oldEX.rd)));
+                                        (idOut.readsRs2 && idOut.rs2 == oldEX.rd)));
                 bool dependsOnEXArith = (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd != 0 &&
-                                         ((idOut.readsRs1 && idOut.rs1 == oldEX.rd) ||
-                                          (idOut.readsRs2 && idOut.rs2 == oldEX.rd)));
+                                        ((idOut.readsRs1 && idOut.rs1 == oldEX.rd) ||
+                                        (idOut.readsRs2 && idOut.rs2 == oldEX.rd)));
                 if (dependsOnEXLoad) {
                     branchDataStall = true;
                     if (loadBranchStallLeft == 0) {
@@ -291,10 +295,12 @@ Status runCycles(uint64_t cycles) {
                 if (!idOut.isLegal) {
                     idIllegalException = true;
                     nextPC = idOut.nextPC;  // EXCEPTION_HANDLER
-                } else if (isBranchInstr && !wbMemException) {
-                    // branch or jump taken (always‑not‑taken prediction)
-                    branchTaken = true;
-                    nextPC = idOut.nextPC;
+                } else if (branchLike && !wbMemException) {
+                    // Recompute branch decision after forwarding using helper
+                    Simulator::Instruction resolved = simulator->simNextPCResolution(idOut);
+                    uint64_t fallThrough = idOut.PC + 4;
+                    branchTaken = (resolved.nextPC != fallThrough) || isJalrInstr;
+                    nextPC = resolved.nextPC;
                 }
             }
         }
@@ -331,17 +337,19 @@ Status runCycles(uint64_t cycles) {
         }
 
         // --------------------------------------------------------
-        // exceptions from ID or WB squash all *younger* instructions
-        // the excepting instruction itself is in ID or WB; older ones
-        // have alr progressed
-        // --------------------------------------------------------
-        if (idIllegalException || wbMemException) {
+        // exceptions from ID or WB squash younger instructions
+        // ID-detected illegal: squash IF/ID only; allow older EX/MEM/WB to complete
+        // WB-detected memory exception: squash IF/ID/EX/MEM (younger than faulting)
+        if (wbMemException) {
             newIF = nop(SQUASHED);
             newID = nop(SQUASHED);
             newEX = nop(SQUASHED);
             newMEM = nop(SQUASHED);
-            // newWB already holds the excepting instruction if WB exception
-            // (or some older inst if ID exception)
+            // newWB already holds excepting instruction
+        } else if (idIllegalException) {
+            newIF = nop(SQUASHED);
+            newID = nop(SQUASHED);
+            // EX/MEM/WB keep their older instructions
         }
 
         // Apply squash of speculative IF after visibility
