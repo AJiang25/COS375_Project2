@@ -468,7 +468,9 @@ Simulator::Instruction Simulator::simIF(uint64_t PC) {
 Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
     // decode, assign control signals
     inst = simDecode(inst);
-    inst.instructionID = din++;
+    if (!inst.isNop && !inst.isHalt && inst.isLegal) {
+        inst.instructionID = din++;
+    }
 
     // Handle Exceptions?
     // Illegal instruction: exception handled via EXCEPTION_HANDLER PC
