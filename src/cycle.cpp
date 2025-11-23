@@ -23,6 +23,7 @@ static uint64_t PC = 0;
 
 /*** Global stats we're responsible for ***/
 static uint64_t loadUseStallCount = 0;
+static uint64_t loadBranchStallLeft = 0;  // tracks two-cycle load->branch stall window
 
 // Cache stall counters (can overlap):
 //  - I-cache miss: only IF stalls; older stages continue
@@ -112,9 +113,10 @@ Status runCycles(uint64_t cycles) {
         bool iStallActive = (iStallLeft > 0);
         bool dStallActive = (dStallLeft > 0);
 
-        // decrement counters for this cycle (both can count down tgt)
+        // decrement counters for this cycle (all can count down together)
         if (iStallLeft > 0) iStallLeft--;
         if (dStallLeft > 0) dStallLeft--;
+        if (loadBranchStallLeft > 0) loadBranchStallLeft--;
 
         // --------------------------------------------------------
         // WB stage: MEM -> WB (WB alw continues)
@@ -133,13 +135,14 @@ Status runCycles(uint64_t cycles) {
         // detect load‑use hazard (EX load, ID uses rd) — only when pipe moves
         // --------------------------------------------------------
         bool loadUseStall = false;
+        bool loadUseEvent = false;  // count stats once per hazard
         if (!dStallActive) {
             bool exIsLoad = (!oldEX.isNop && oldEX.readsMem && !oldEX.writesMem);
             if (exIsLoad && !oldID.isNop && oldEX.rd != 0) {
                 if ((oldID.readsRs1 && oldID.rs1 == oldEX.rd) ||
                     (oldID.readsRs2 && oldID.rs2 == oldEX.rd)) {
                     loadUseStall = true;
-                    loadUseStallCount++;
+                    loadUseEvent = true;
                 }
             }
         }
@@ -152,6 +155,11 @@ Status runCycles(uint64_t cycles) {
             // still waiting on previous D miss; hold MEM instruction
             newMEM = oldMEM;
         } else if (!oldEX.isNop) {
+            // WB -> MEM forwarding for store data (load then store)
+            if (oldEX.writesMem && !oldWB.isNop && oldWB.writesRd && oldWB.rd == oldEX.rs2) {
+                oldEX.op2Val = oldWB.readsMem ? oldWB.memResult : oldWB.arithResult;
+            }
+
             if (oldEX.readsMem || oldEX.writesMem) {
                 bool dHit = dCache->access(oldEX.memAddress,
                                            oldEX.writesMem ? CACHE_WRITE : CACHE_READ);
@@ -181,7 +189,7 @@ Status runCycles(uint64_t cycles) {
         // --------------------------------------------------------
         if (dStallActive) {
             newEX = oldEX;  // freeze pipeline on D stall
-        } else if (!loadUseStall && !branchDataStall) {
+        } else if (!loadUseStall && !branchDataStall && loadBranchStallLeft == 0) {
             Simulator::Instruction exInput = oldID;
 
             // MEM -> EX forwarding (priority)
@@ -255,13 +263,26 @@ Status runCycles(uint64_t cycles) {
                 bool dependsOnEXLoad = (!oldEX.isNop && oldEX.readsMem && oldEX.rd != 0 &&
                                         ((idOut.readsRs1 && idOut.rs1 == oldEX.rd) ||
                                          (idOut.readsRs2 && idOut.rs2 == oldEX.rd)));
+                bool dependsOnEXArith = (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd != 0 &&
+                                         ((idOut.readsRs1 && idOut.rs1 == oldEX.rd) ||
+                                          (idOut.readsRs2 && idOut.rs2 == oldEX.rd)));
                 if (dependsOnEXLoad) {
                     branchDataStall = true;
-                    loadUseStallCount++;  // load->branch counts toward load-use stat
+                    if (loadBranchStallLeft == 0) {
+                        loadBranchStallLeft = 2;  // two-cycle stall window
+                        loadUseEvent = true;      // count once per hazard
+                    }
+                } else if (dependsOnEXArith) {
+                    branchDataStall = true;  // single-cycle stall via branchDataStall
                 }
             }
 
-            if (loadUseStall || branchDataStall) {
+            // continue stall through remaining load->branch stall cycles
+            if (loadBranchStallLeft > 0) {
+                branchDataStall = true;
+            }
+
+            if (loadUseStall || branchDataStall || loadBranchStallLeft > 0) {
                 newID = oldID;  // hold ID
             } else {
                 newID = idOut;
@@ -270,7 +291,7 @@ Status runCycles(uint64_t cycles) {
                 if (!idOut.isLegal) {
                     idIllegalException = true;
                     nextPC = idOut.nextPC;  // EXCEPTION_HANDLER
-                } else if (isBranchInstr) {
+                } else if (isBranchInstr && !wbMemException) {
                     // branch or jump taken (always‑not‑taken prediction)
                     branchTaken = true;
                     nextPC = idOut.nextPC;
@@ -282,7 +303,7 @@ Status runCycles(uint64_t cycles) {
         // IF stage: fetch next instruction (unless stalled or exception)
         // --------------------------------------------------------
         bool iMissThisCycle = false;
-        if (dStallActive || loadUseStall || branchDataStall || idIllegalException || wbMemException) {
+        if (dStallActive || loadUseStall || branchDataStall || loadBranchStallLeft > 0 || idIllegalException || wbMemException) {
             newIF = oldIF;  // frozen
         } else {
             bool iHit = iCache->access(PC, CACHE_READ);
@@ -302,8 +323,11 @@ Status runCycles(uint64_t cycles) {
         // control hazard: squash the speculatively fetched IF instruction
         // when a branch is taken in ID
         // --------------------------------------------------------
-        if (branchTaken && !idIllegalException && !wbMemException && !loadUseStall && !branchDataStall) {
-            newIF = nop(SQUASHED);
+        // if branch taken in ID, mark fetched instruction SPECULATIVE and squash on next line so SPECULATIVE visible in dumps
+        bool squashIFnext = false;
+        if (branchTaken && !idIllegalException && !wbMemException && !loadUseStall && !branchDataStall && loadBranchStallLeft == 0) {
+            newIF.status = SPECULATIVE;
+            squashIFnext = true;
         }
 
         // --------------------------------------------------------
@@ -320,13 +344,22 @@ Status runCycles(uint64_t cycles) {
             // (or some older inst if ID exception)
         }
 
+        // Apply squash of speculative IF after visibility
+        if (squashIFnext && !idIllegalException && !wbMemException) {
+            newIF = nop(SQUASHED);
+        }
+
         // --------------------------------------------------------
         // PC update:
         //  - Freeze on any stall (load-use, branch dep, i-miss, d-stall)
         //  - Otherwise: use nextPC from branch / exception logic
         // --------------------------------------------------------
-        bool freezePC = loadUseStall || branchDataStall || dStallActive || dMissThisCycle || iStallActive || iMissThisCycle;
-        if (!freezePC) {
+        bool freezePC = loadUseStall || branchDataStall || (loadBranchStallLeft > 0) || dStallActive || dMissThisCycle || iStallActive || iMissThisCycle;
+
+        // WB exception must take priority and force PC to handler
+        if (wbMemException) {
+            PC = nextPC;  // nextPC already set to EXCEPTION_HANDLER
+        } else if (!freezePC) {
             PC = nextPC;
         }
 
@@ -345,6 +378,11 @@ Status runCycles(uint64_t cycles) {
         if (newWB.isHalt) {
             status = HALT;
             break;
+        }
+
+        // count load-use hazard events once per hazard (includes load->branch)
+        if (loadUseEvent) {
+            loadUseStallCount++;
         }
 
         ++cycleCount;
