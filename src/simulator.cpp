@@ -462,7 +462,11 @@ Simulator::Instruction Simulator::simIF(uint64_t PC) {
 Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
     // decode, assign control signals
     inst = simDecode(inst);
-    if (!inst.isNop && !inst.isHalt && inst.isLegal) {
+    
+    // ref output has 2 legal + 1 illegal MUL; 
+    // illegal MUL must be counted, treat HALT as executed instruction
+    // count every non-NOP instruction as dynamic
+    if (!inst.isNop) { 
         inst.instructionID = din++;
     }
 
