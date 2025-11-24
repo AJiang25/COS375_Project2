@@ -326,12 +326,16 @@ Status runCycles(uint64_t cycles) {
                 branchDataStall = true;
             }
 
-            bool iStallNow = iStallActiveNow || iMissThisCycle;
+            // bool iStallNow = iStallActiveNow || iMissThisCycle; // removed to prevent dropping instruction
 
-            bool idWillAdvance = !(loadUseStall || branchDataStall || loadBranchStallLeft > 0 || dStallNow || iStallNow);
+            bool idWillAdvance = !(loadUseStall || branchDataStall || loadBranchStallLeft > 0 || dStallNow);
             if (idWillAdvance) {
-                idDecodedNext = simulator->simID(oldIF);
-                newID = idDecodedNext;
+                if (iStallActiveNow) {
+                    newID = nop(BUBBLE);
+                } else {
+                    idDecodedNext = simulator->simID(oldIF);
+                    newID = idDecodedNext;
+                }
             } else {
                 newID = oldID;
             }
