@@ -1,0 +1,17 @@
+# Compiled files
+*.o
+*.out
+
+# Test files
+test/*.bin
+test/*.elf
+
+# Simulator files
+sim_funct
+test/fib.bin
+test/fib.elf
+test/illegal.bin
+test/illegal.elf
+
+# Misc
+.DS_Store

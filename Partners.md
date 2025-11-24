@@ -3,15 +3,15 @@
 ### Group (work in groups of 2, 3, or 4 people, adjust the number of lines as needed)
 
 - [Arnold Jiang - netid_1: aj9183@princeton.edu]
-- [name_2 - netid_2: email_2]
-- [name_3 - netid_3: email_3]
-- [name_4 - netid_4: email_4]
+- [Ammaar Alam - netid_2: ah0952@princeton.edu]
+- N/A
+- N/A
 
 ## Time Investment
 
 ### Approximately how many hours did it take you to complete this assignment?
 
-- Number of hours: 1
+- Number of hours: 1 + 6 + 10 + 14
 
 ### How many additional test cases did you write to test your implementation?
 
@@ -57,6 +57,6 @@
 >> This programming assignment represents my own work in accordance with University regulations and the course syllabus.  /s/ Ada Lovelace
 
 - This programming assignment represents my own work in accordance with University regulations and the course syllabus.  /s/ Arnold Jiang
-- [Acknowledgement of student 2]
-- [Acknowledgement of student 3]
-- [Acknowledgement of student 4]
+- This programming assignment represents my own work in accordance with University regulations and the course syllabus.  /s/ Ammaar Alam
+- N/A
+- N/A
