@@ -32,19 +32,13 @@ Simulator::Instruction Simulator::simFetch(uint64_t PC, MemoryStore *myMem) {
     inst.PC = PC;
     
     uint64_t instruction;
-    // myMem->getMemValue(PC, instruction, WORD_SIZE);
     if (myMem->getMemValue(PC, instruction, WORD_SIZE) != 0) {
         inst.memException = true; 
-        // chaning to NOT set isLegal = false here, letting it flow to WB to trap
+        // changing to NOT set isLegal = false here, letting it flow to WB to trap
         inst.instruction = 0; // NOP to be safe while flowing down
     } else {
         inst.instruction = (uint32_t)instruction;
     }
-    // instruction = (uint32_t)instruction;
-
-    // Instruction inst;
-    // inst.PC = PC;
-    // inst.instruction = instruction;
     return inst;
 }
 
@@ -498,7 +492,7 @@ Simulator::Instruction Simulator::simEX(Simulator::Instruction inst) {
         return inst;
     }
 
-    // for normal instructions that perform ALU work, do  here
+    // for normal instructions that perform ALU work, do work here
     if (inst.doesArithLogic) {
         inst = simArithLogic(inst);
     }
@@ -559,7 +553,6 @@ Simulator::Instruction Simulator::simInstruction(uint64_t PC) {
     inst.instructionID = din++;
     if (!inst.isLegal || inst.isHalt) return inst;
     inst = simOperandCollection(inst, regData);
-    // inst = (inst); // this im assuming is a typo? im so lost
     inst = simNextPCResolution(inst);
     if (inst.doesArithLogic) inst = simArithLogic(inst);
     if (inst.readsMem || inst.writesMem) {

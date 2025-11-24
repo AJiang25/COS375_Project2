@@ -46,7 +46,28 @@ public:
     Status dump(const std::string& base_output_name);
 
     // TODO: You may add more methods and fields as needed
-
     uint64_t getHits() { return hits; }
     uint64_t getMisses() { return misses; }
+
+    // numSets = (cacheSize / blockSize) / ways
+    uint64_t numSets;
+
+    // indexBits = log2(numSets)
+    uint64_t indexBits;
+
+    // offsetBits = log2(blockSize)
+    uint64_t offsetBits;
+
+    // lruStamp = ++globalLRUCounter
+    uint64_t globalLRUCounter;
+
+    // Cache Lines
+    struct Line {
+        bool valid;
+        uint64_t tag;
+        uint64_t lruStamp;
+    };
+
+    // set of cache sets aka a table; sets[set][way]
+    std::vector<std::vector<Line>> sets;
 };
