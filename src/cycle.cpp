@@ -22,8 +22,9 @@ static uint64_t PC = 0;
  */
 
 /*** Global stats we're responsible for ***/
-static uint64_t loadUseStallCount = 0;
+static uint64_t loadUseStallCount = 0;    // tracks load-use stalls
 static uint64_t loadBranchStallLeft = 0;  // tracks two-cycle load->branch stall window
+static bool     squashNextIF = false;     // pending squash of speculative IF
 
 // Cache stall counters (can overlap):
 //  - I-cache miss: only IF stalls; older stages continue
@@ -84,6 +85,12 @@ Status runCycles(uint64_t cycles) {
     pipeState.cycle = 0;
 
     while (cycles == 0 || count < cycles) {
+
+        // apply any pending squash of IF from prior taken branch (for visibility)
+        if (squashNextIF) {
+            pipelineInfo.ifInst = nop(SQUASHED);
+            squashNextIF = false;
+        }
 
         pipeState.cycle = cycleCount;
 
@@ -160,9 +167,12 @@ Status runCycles(uint64_t cycles) {
                 oldEX.op2Val = oldWB.readsMem ? oldWB.memResult : oldWB.arithResult;
             }
 
-            if (oldEX.readsMem || oldEX.writesMem) {
-                bool dHit = dCache->access(oldEX.memAddress,
-                                           oldEX.writesMem ? CACHE_WRITE : CACHE_READ);
+            // compute effective address before probing D-cache
+            Simulator::Instruction memInput = oldEX;
+            if (memInput.readsMem || memInput.writesMem) {
+                memInput = simulator->simAddrGen(memInput);
+                bool dHit = dCache->access(memInput.memAddress,
+                                           memInput.writesMem ? CACHE_WRITE : CACHE_READ);
                 if (!dHit) {
                     dStallLeft += dCache->config.missLatency;
                     dMissThisCycle = true;
@@ -170,10 +180,10 @@ Status runCycles(uint64_t cycles) {
             }
 
             if (dMissThisCycle) {
-                // keep instruction in MEM while stall counts down
-                newMEM = oldEX;
+                // keep instruction in MEM while stall counts down (with computed addr)
+                newMEM = memInput;
             } else {
-                newMEM = simulator->simMEM(oldEX);
+                newMEM = simulator->simMEM(memInput);
             }
         } else {
             newMEM = nop(BUBBLE);
@@ -224,52 +234,53 @@ Status runCycles(uint64_t cycles) {
 
         // --------------------------------------------------------
         // ID stage: IF -> ID (unless stalled)
-        // also resolves branches in ID
+        // Branch hazards/resolution operate on the instruction *currently* in ID (oldID)
         // --------------------------------------------------------
-        Simulator::Instruction idOut = nop(BUBBLE);
+        Simulator::Instruction idDecodedNext = nop(BUBBLE);  // will hold decode of oldIF if we advance
+        Simulator::Instruction idEval = oldID;                // instruction presently in ID
+
         if (dStallActive) {
             newID = oldID;  // freeze during D stall
         } else {
-            idOut = simulator->simID(oldIF);
-
-            // branch operand forwarding (ID uses results from older stages)
-            if (idOut.readsRs1 && idOut.rs1 != 0) {
-                // prefer EX (ALU result available), then MEM, then WB
-                if (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd == idOut.rs1) {
-                    idOut.op1Val = oldEX.arithResult;
-                } else if (!oldMEM.isNop && oldMEM.writesRd && oldMEM.rd == idOut.rs1) {
+            // forward operands for instruction currently in ID (idEval)
+            if (idEval.readsRs1 && idEval.rs1 != 0) {
+                if (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd == idEval.rs1) {
+                    idEval.op1Val = oldEX.arithResult;
+                } else if (!oldMEM.isNop && oldMEM.writesRd && oldMEM.rd == idEval.rs1) {
                     uint64_t fwdVal = oldMEM.readsMem ? oldMEM.memResult : oldMEM.arithResult;
-                    idOut.op1Val = fwdVal;
-                } else if (!oldWB.isNop && oldWB.writesRd && oldWB.rd == idOut.rs1) {
+                    idEval.op1Val = fwdVal;
+                } else if (!oldWB.isNop && oldWB.writesRd && oldWB.rd == idEval.rs1) {
                     uint64_t fwdVal = oldWB.readsMem ? oldWB.memResult : oldWB.arithResult;
-                    idOut.op1Val = fwdVal;
+                    idEval.op1Val = fwdVal;
                 }
             }
-            if (idOut.readsRs2 && idOut.rs2 != 0) {
-                if (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd == idOut.rs2) {
-                    idOut.op2Val = oldEX.arithResult;
-                } else if (!oldMEM.isNop && oldMEM.writesRd && oldMEM.rd == idOut.rs2) {
+            if (idEval.readsRs2 && idEval.rs2 != 0) {
+                if (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd == idEval.rs2) {
+                    idEval.op2Val = oldEX.arithResult;
+                } else if (!oldMEM.isNop && oldMEM.writesRd && oldMEM.rd == idEval.rs2) {
                     uint64_t fwdVal = oldMEM.readsMem ? oldMEM.memResult : oldMEM.arithResult;
-                    idOut.op2Val = fwdVal;
-                } else if (!oldWB.isNop && oldWB.writesRd && oldWB.rd == idOut.rs2) {
+                    idEval.op2Val = fwdVal;
+                } else if (!oldWB.isNop && oldWB.writesRd && oldWB.rd == idEval.rs2) {
                     uint64_t fwdVal = oldWB.readsMem ? oldWB.memResult : oldWB.arithResult;
-                    idOut.op2Val = fwdVal;
+                    idEval.op2Val = fwdVal;
                 }
             }
 
-            // Branch detection uses opcode, not predicted target
-            bool isBranchInstr = (idOut.opcode == OP_BRANCH);
-            bool isJalrInstr   = (idOut.opcode == OP_JALR);
-            bool branchLike    = isBranchInstr || isJalrInstr;
+            // branch detection uses opcode of instruction currently in ID
+            bool isBranchInstr  = (idEval.opcode == OP_BRANCH);
+            bool isJalrInstr    = (idEval.opcode == OP_JALR);
+            bool isJalInstr     = (idEval.opcode == OP_JAL);
+            bool branchUsesRegs = isBranchInstr || isJalrInstr;  // needs operands
+            bool isControlFlow  = branchUsesRegs || isJalInstr;   // redirects PC
 
-            // detect branch-dependent stalls (arith-branch and load-branch)
-            if (branchLike) {
+            // detect branch-dependent stalls (arith-branch and load-branch) against EX
+            if (branchUsesRegs) {
                 bool dependsOnEXLoad = (!oldEX.isNop && oldEX.readsMem && oldEX.rd != 0 &&
-                                        ((idOut.readsRs1 && idOut.rs1 == oldEX.rd) ||
-                                        (idOut.readsRs2 && idOut.rs2 == oldEX.rd)));
+                                        ((idEval.readsRs1 && idEval.rs1 == oldEX.rd) ||
+                                         (idEval.readsRs2 && idEval.rs2 == oldEX.rd)));
                 bool dependsOnEXArith = (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd != 0 &&
-                                        ((idOut.readsRs1 && idOut.rs1 == oldEX.rd) ||
-                                        (idOut.readsRs2 && idOut.rs2 == oldEX.rd)));
+                                         ((idEval.readsRs1 && idEval.rs1 == oldEX.rd) ||
+                                          (idEval.readsRs2 && idEval.rs2 == oldEX.rd)));
                 if (dependsOnEXLoad) {
                     branchDataStall = true;
                     if (loadBranchStallLeft == 0) {
@@ -277,7 +288,7 @@ Status runCycles(uint64_t cycles) {
                         loadUseEvent = true;      // count once per hazard
                     }
                 } else if (dependsOnEXArith) {
-                    branchDataStall = true;  // single-cycle stall via branchDataStall
+                    branchDataStall = true;  // single-cycle stall
                 }
             }
 
@@ -286,22 +297,24 @@ Status runCycles(uint64_t cycles) {
                 branchDataStall = true;
             }
 
-            if (loadUseStall || branchDataStall || loadBranchStallLeft > 0) {
-                newID = oldID;  // hold ID
+            bool idWillAdvance = !(loadUseStall || branchDataStall || loadBranchStallLeft > 0);
+            if (idWillAdvance) {
+                idDecodedNext = simulator->simID(oldIF);
+                newID = idDecodedNext;
             } else {
-                newID = idOut;
+                newID = oldID;
+            }
 
-                // illegal instruction detected in ID
-                if (!idOut.isLegal) {
-                    idIllegalException = true;
-                    nextPC = idOut.nextPC;  // EXCEPTION_HANDLER
-                } else if (branchLike && !wbMemException) {
-                    // Recompute branch decision after forwarding using helper
-                    Simulator::Instruction resolved = simulator->simNextPCResolution(idOut);
-                    uint64_t fallThrough = idOut.PC + 4;
-                    branchTaken = (resolved.nextPC != fallThrough) || isJalrInstr;
-                    nextPC = resolved.nextPC;
-                }
+            // illegal instruction detected in ID stage (current ID instruction)
+            if (!idEval.isLegal) {
+                idIllegalException = true;
+                nextPC = idEval.nextPC;  // EXCEPTION_HANDLER
+            } else if (idWillAdvance && isControlFlow && !wbMemException) {
+                // Recompute control-flow decision for the instruction in ID after forwarding
+                Simulator::Instruction resolved = simulator->simNextPCResolution(idEval);
+                uint64_t fallThrough = idEval.PC + 4;
+                branchTaken = (resolved.nextPC != fallThrough);
+                nextPC = resolved.nextPC;
             }
         }
 
@@ -326,14 +339,12 @@ Status runCycles(uint64_t cycles) {
         }
 
         // --------------------------------------------------------
-        // control hazard: squash the speculatively fetched IF instruction
-        // when a branch is taken in ID
-        // --------------------------------------------------------
-        // if branch taken in ID, mark fetched instruction SPECULATIVE and squash on next line so SPECULATIVE visible in dumps
-        bool squashIFnext = false;
+        // control hazard: mark IF SPECULATIVE on taken control transfer;
+        // defer squash to next cycle so SPECULATIVE is visible in dumps
+        bool scheduleSquashNextIF = false;
         if (branchTaken && !idIllegalException && !wbMemException && !loadUseStall && !branchDataStall && loadBranchStallLeft == 0) {
             newIF.status = SPECULATIVE;
-            squashIFnext = true;
+            scheduleSquashNextIF = true;
         }
 
         // --------------------------------------------------------
@@ -352,9 +363,9 @@ Status runCycles(uint64_t cycles) {
             // EX/MEM/WB keep their older instructions
         }
 
-        // Apply squash of speculative IF after visibility
-        if (squashIFnext && !idIllegalException && !wbMemException) {
-            newIF = nop(SQUASHED);
+        // Apply deferred IF squash for taken control transfer
+        if (scheduleSquashNextIF && !idIllegalException && !wbMemException) {
+            squashNextIF = true;
         }
 
         // --------------------------------------------------------
@@ -367,6 +378,8 @@ Status runCycles(uint64_t cycles) {
         // WB exception must take priority and force PC to handler
         if (wbMemException) {
             PC = nextPC;  // nextPC already set to EXCEPTION_HANDLER
+        } else if (idIllegalException) {
+            PC = nextPC;  // jump to handler even if stalls were present
         } else if (!freezePC) {
             PC = nextPC;
         }
@@ -384,6 +397,14 @@ Status runCycles(uint64_t cycles) {
         // Halt detection: only when HALT reaches WB
         // --------------------------------------------------------
         if (newWB.isHalt) {
+            // count any pending load-use event for this cycle
+            if (loadUseEvent) {
+                loadUseStallCount++;
+            }
+
+            // final cycle is accounted for in totals
+            ++cycleCount;
+            ++count;
             status = HALT;
             break;
         }
@@ -400,6 +421,7 @@ Status runCycles(uint64_t cycles) {
     // ------------------------------------------------------------
     // Dump pipe state for the *last* simulated cycle
     // ------------------------------------------------------------
+    pipeState.cycle = (cycleCount == 0) ? 0 : cycleCount - 1;
     pipeState.ifPC = pipelineInfo.ifInst.PC;
     pipeState.ifStatus = pipelineInfo.ifInst.status;
     pipeState.idInstr = pipelineInfo.idInst.instruction;
