@@ -100,6 +100,7 @@ Status runCycles(uint64_t cycles) {
         Simulator::Instruction oldEX = pipelineInfo.exInst;
         Simulator::Instruction oldMEM = pipelineInfo.memInst;
         Simulator::Instruction oldWB = pipelineInfo.wbInst;
+        bool illegalInID = (!oldID.isNop && !oldID.isLegal);
 
         // new pipeline registers (initialized as idle NOPs)
         Simulator::Instruction newIF = nop(IDLE);
@@ -117,7 +118,7 @@ Status runCycles(uint64_t cycles) {
         uint64_t nextPC = PC + 4;
 
         // current stall state
-        bool iStallActive = (iStallLeft > 0);
+        // bool iStallActive = (iStallLeft > 0);
         bool dStallActive = (dStallLeft > 0);
 
         // decrement counters for this cycle (all can count down together)
@@ -146,13 +147,17 @@ Status runCycles(uint64_t cycles) {
         if (!dStallActive) {
             bool exIsLoad = (!oldEX.isNop && oldEX.readsMem && !oldEX.writesMem);
             if (exIsLoad && !oldID.isNop && oldEX.rd != 0) {
-                if ((oldID.readsRs1 && oldID.rs1 == oldEX.rd) ||
-                    (oldID.readsRs2 && oldID.rs2 == oldEX.rd)) {
+                bool hazardOnRs1 = (oldID.readsRs1 && oldID.rs1 == oldEX.rd);
+                // store data (rs2) forwarded WB->MEM; don't stall for that case
+                bool hazardOnRs2 = (oldID.readsRs2 && oldID.rs2 == oldEX.rd && !oldID.writesMem);
+                if (hazardOnRs1 || hazardOnRs2) {
                     loadUseStall = true;
                     loadUseEvent = true;
                 }
             }
         }
+
+        bool iMissThisCycle = false;
 
         // --------------------------------------------------------
         // MEM stage: EX -> MEM + D‑cache access
@@ -189,16 +194,40 @@ Status runCycles(uint64_t cycles) {
             newMEM = nop(BUBBLE);
         }
 
-        // if MEM is stalled (prior or newly detected), WB gets a bubble
-        if (dStallActive || dMissThisCycle) {
+        // if MEM is stalled from prior miss, WB gets a bubble
+        if (dStallActive) {
             newWB = nop(BUBBLE);
+        }
+
+        bool dStallNow = dStallActive || dMissThisCycle;
+
+        // --------------------------------------------------------
+        // IF stage (prefetch for this cycle) to know I-miss before ID gating
+        // --------------------------------------------------------
+        bool iStallActiveNow = (iStallLeft > 0);
+        Simulator::Instruction fetchedIF = oldIF;
+        if (dStallNow || loadUseStall || branchDataStall || loadBranchStallLeft > 0 || idIllegalException || wbMemException) {
+            fetchedIF = oldIF;  // frozen due to hazards or D stall
+        } else if (iStallActiveNow) {
+            fetchedIF = oldIF;  // still paying prior I-miss penalty
+        } else {
+            bool iHit = iCache->access(PC, CACHE_READ);
+            if (!iHit) {
+                iStallLeft += iCache->config.missLatency;
+                iMissThisCycle = true;
+                fetchedIF = simulator->simIF(PC);  // missing instruction sits in IF
+            } else {
+                fetchedIF = simulator->simIF(PC);
+            }
         }
 
         // --------------------------------------------------------
         // EX stage: ID -> EX with forwarding (unless stalling)
         // --------------------------------------------------------
-        if (dStallActive) {
-            newEX = oldEX;  // freeze pipeline on D stall
+        if (dStallNow) {
+            newEX = oldEX;  // freeze pipeline on D stall (detected or active)
+        } else if (illegalInID) {
+            newEX = nop(SQUASHED);  // illegal squashed before EX
         } else if (!loadUseStall && !branchDataStall && loadBranchStallLeft == 0) {
             Simulator::Instruction exInput = oldID;
 
@@ -239,7 +268,7 @@ Status runCycles(uint64_t cycles) {
         Simulator::Instruction idDecodedNext = nop(BUBBLE);  // will hold decode of oldIF if we advance
         Simulator::Instruction idEval = oldID;                // instruction presently in ID
 
-        if (dStallActive) {
+        if (dStallNow) {
             newID = oldID;  // freeze during D stall
         } else {
             // forward operands for instruction currently in ID (idEval)
@@ -297,7 +326,9 @@ Status runCycles(uint64_t cycles) {
                 branchDataStall = true;
             }
 
-            bool idWillAdvance = !(loadUseStall || branchDataStall || loadBranchStallLeft > 0);
+            bool iStallNow = iStallActiveNow || iMissThisCycle;
+
+            bool idWillAdvance = !(loadUseStall || branchDataStall || loadBranchStallLeft > 0 || dStallNow || iStallNow);
             if (idWillAdvance) {
                 idDecodedNext = simulator->simID(oldIF);
                 newID = idDecodedNext;
@@ -321,21 +352,9 @@ Status runCycles(uint64_t cycles) {
         // --------------------------------------------------------
         // IF stage: fetch next instruction (unless stalled or exception)
         // --------------------------------------------------------
-        bool iMissThisCycle = false;
-        if (dStallActive || loadUseStall || branchDataStall || loadBranchStallLeft > 0 || idIllegalException || wbMemException) {
-            newIF = oldIF;  // frozen
-        } else {
-            bool iHit = iCache->access(PC, CACHE_READ);
-            if (!iHit) {
-                iStallLeft += iCache->config.missLatency;
-                iMissThisCycle = true;
-                newIF = oldIF;  // fetch stalled
-            } else {
-                newIF = simulator->simIF(PC);
-                if (branchTaken) {
-                    newIF.status = SPECULATIVE;
-                }
-            }
+        newIF = fetchedIF;
+        if (branchTaken && !idIllegalException && !wbMemException && !dStallNow && !iStallActiveNow && !iMissThisCycle && !loadUseStall && !branchDataStall && loadBranchStallLeft == 0) {
+            newIF.status = SPECULATIVE;
         }
 
         // --------------------------------------------------------
@@ -373,7 +392,7 @@ Status runCycles(uint64_t cycles) {
         //  - Freeze on any stall (load-use, branch dep, i-miss, d-stall)
         //  - Otherwise: use nextPC from branch / exception logic
         // --------------------------------------------------------
-        bool freezePC = loadUseStall || branchDataStall || (loadBranchStallLeft > 0) || dStallActive || dMissThisCycle || iStallActive || iMissThisCycle;
+        bool freezePC = loadUseStall || branchDataStall || (loadBranchStallLeft > 0) || dStallNow || (iStallLeft > 0) || iMissThisCycle;
 
         // WB exception must take priority and force PC to handler
         if (wbMemException) {
