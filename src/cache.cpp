@@ -2,6 +2,7 @@
 // TODO: Modify this file to model an LRU cache as in the project description
 
 #include "cache.h"
+#include <cmath> 
 // #include <random> I don't think we need this anymore?
 
 using namespace std;
