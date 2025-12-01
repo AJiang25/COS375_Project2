@@ -32,6 +32,10 @@ static bool     squashNextIF = false;     // pending squash of speculative IF
 static uint64_t iStallLeft = 0;  // remaining I‑cache stall cycles
 static uint64_t dStallLeft = 0;  // remaining D‑cache stall cycles
 
+// State to prevent double-counting I-cache hits on stall resume
+static bool     wasIStalled = false;
+static bool     stalledForHazard = false;
+
 /** Create a micro‑architectural NOP with a given stage status */
 Simulator::Instruction nop(StageStatus status) {
     Simulator::Instruction nop;
@@ -63,6 +67,8 @@ Status initSimulator(CacheConfig& iCacheConfig, CacheConfig& dCacheConfig, Memor
     PC = 0;
     loadUseStallCount = 0;
     iStallLeft = dStallLeft = 0;
+    wasIStalled = false;
+    stalledForHazard = false;
 
     pipelineInfo.ifInst = nop(IDLE);
     pipelineInfo.idInst = nop(IDLE);
@@ -89,6 +95,7 @@ Status runCycles(uint64_t cycles) {
         // apply any pending squash of IF from prior taken branch (for visibility)
         if (squashNextIF) {
             pipelineInfo.ifInst = nop(SQUASHED);
+            pipelineInfo.idInst = nop(SQUASHED);
             squashNextIF = false;
         }
 
@@ -112,13 +119,12 @@ Status runCycles(uint64_t cycles) {
         bool branchTaken         = false;
         bool idIllegalException  = false;
         bool wbMemException      = false;
-        bool branchDataStall     = false;
+
 
         // default next PC is fall‑through
         uint64_t nextPC = PC + 4;
 
         // current stall state
-        // bool iStallActive = (iStallLeft > 0);
         bool dStallActive = (dStallLeft > 0);
 
         // decrement counters for this cycle (all can count down together)
@@ -140,10 +146,14 @@ Status runCycles(uint64_t cycles) {
         }
 
         // --------------------------------------------------------
-        // detect load‑use hazard (EX load, ID uses rd) — only when pipe moves
+        // Hazard Detection (Load-Use & Branch-Data)
+        // Detect hazards EARLY so IF stage sees the correct stall signal
         // --------------------------------------------------------
         bool loadUseStall = false;
         bool loadUseEvent = false;  // count stats once per hazard
+        bool branchDataStall = false;
+
+        // Load-Use Hazard Detection
         if (!dStallActive) {
             bool exIsLoad = (!oldEX.isNop && oldEX.readsMem && !oldEX.writesMem);
             if (exIsLoad && !oldID.isNop && oldEX.rd != 0) {
@@ -155,6 +165,39 @@ Status runCycles(uint64_t cycles) {
                     loadUseEvent = true;
                 }
             }
+        }
+
+        // Branch-Data Hazard Check (Arith-Branch & Load-Branch)
+        // Check hazards for instr currently in ID (oldID)
+        if (!dStallActive && !loadUseStall) {
+             // branch detection uses opcode of instr in ID
+            bool isBranchInstr  = (oldID.opcode == OP_BRANCH);
+            bool isJalrInstr    = (oldID.opcode == OP_JALR);
+            bool isJalInstr     = (oldID.opcode == OP_JAL);
+            bool branchUsesRegs = isBranchInstr || isJalrInstr;  // needs operands
+
+            if (branchUsesRegs) {
+                bool dependsOnEXLoad = (!oldEX.isNop && oldEX.readsMem && oldEX.rd != 0 &&
+                                        ((oldID.readsRs1 && oldID.rs1 == oldEX.rd) ||
+                                         (oldID.readsRs2 && oldID.rs2 == oldEX.rd)));
+                bool dependsOnEXArith = (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd != 0 &&
+                                         ((oldID.readsRs1 && oldID.rs1 == oldEX.rd) ||
+                                          (oldID.readsRs2 && oldID.rs2 == oldEX.rd)));
+                if (dependsOnEXLoad) {
+                    branchDataStall = true;
+                    if (loadBranchStallLeft == 0) {
+                        loadBranchStallLeft = 2;  // two-cycle stall window
+                        loadUseEvent = true;      // count once per hazard
+                    }
+                } else if (dependsOnEXArith) {
+                    // branchDataStall = true; 
+                }
+            }
+        }
+
+        // Continue stall through remaining load->branch stall cycles
+        if (loadBranchStallLeft > 0) {
+            branchDataStall = true;
         }
 
         bool iMissThisCycle = false;
@@ -179,14 +222,15 @@ Status runCycles(uint64_t cycles) {
                 bool dHit = dCache->access(memInput.memAddress,
                                            memInput.writesMem ? CACHE_WRITE : CACHE_READ);
                 if (!dHit) {
-                    dStallLeft += dCache->config.missLatency;
+                    // Sub 1 from miss penalty as current cycle counts
+                    dStallLeft += dCache->config.missLatency - 1;
                     dMissThisCycle = true;
                 }
             }
 
             if (dMissThisCycle) {
                 // keep instruction in MEM while stall counts down (with computed addr)
-                newMEM = memInput;
+                newMEM = simulator->simMEM(memInput);
             } else {
                 newMEM = simulator->simMEM(memInput);
             }
@@ -206,58 +250,95 @@ Status runCycles(uint64_t cycles) {
         // --------------------------------------------------------
         bool iStallActiveNow = (iStallLeft > 0);
         Simulator::Instruction fetchedIF = oldIF;
+        
+        // If pipeline frozen (hazards/D-stall), keep oldIF
         if (dStallNow || loadUseStall || branchDataStall || loadBranchStallLeft > 0 || idIllegalException || wbMemException) {
             fetchedIF = oldIF;  // frozen due to hazards or D stall
+            nextPC = PC;        // don't adv PC when stalled
+            stalledForHazard = true; // flag we hold oldIF due to hazard
         } else if (iStallActiveNow) {
-            fetchedIF = oldIF;  // still paying prior I-miss penalty
+            fetchedIF = nop(BUBBLE); // pipeline moving, Fetch Stalled -> Bubble
+            wasIStalled = true;
+            stalledForHazard = false;
         } else {
-            bool iHit = iCache->access(PC, CACHE_READ);
-            if (!iHit) {
-                iStallLeft += iCache->config.missLatency;
-                iMissThisCycle = true;
-                fetchedIF = simulator->simIF(PC);  // missing instruction sits in IF
-            } else {
+            if (wasIStalled || stalledForHazard) {
+                // Resume after stall OR hazard: Fetch WITHOUT accessing cache (penalty paid / already fetched)
                 fetchedIF = simulator->simIF(PC);
+                wasIStalled = false;
+                stalledForHazard = false;
+            } else {
+                // Normal operation: Access Cache
+                bool iHit = iCache->access(PC, CACHE_READ);
+                if (!iHit) {
+                    // Subtract 1 from miss penalty
+                    iStallLeft += iCache->config.missLatency - 1;
+                    iMissThisCycle = true;
+                    fetchedIF = nop(BUBBLE); // pipeline moving, Miss -> Bubble
+                    wasIStalled = true;
+                } else {
+                    fetchedIF = simulator->simIF(PC);
+                }
             }
         }
 
         // --------------------------------------------------------
         // EX stage: ID -> EX with forwarding (unless stalling)
         // --------------------------------------------------------
-        if (dStallNow) {
-            newEX = oldEX;  // freeze pipeline on D stall (detected or active)
+        if (dMissThisCycle) {
+            // If D-miss starts, instr moved to MEM
+            // EX becomes bubble (no dup load)
+            newEX = nop(BUBBLE);
+        } else if (dStallActive) {
+            // If D-stall continues, hold existing EX (bubble)
+            newEX = oldEX; 
         } else if (illegalInID) {
             newEX = nop(SQUASHED);  // illegal squashed before EX
         } else if (!loadUseStall && !branchDataStall && loadBranchStallLeft == 0) {
             Simulator::Instruction exInput = oldID;
 
-            // MEM -> EX forwarding (priority)
-            if (!oldMEM.isNop && oldMEM.writesRd && oldMEM.rd != 0) {
-                uint64_t fwdVal = oldMEM.readsMem ? oldMEM.memResult : oldMEM.arithResult;
-                if (exInput.readsRs1 && exInput.rs1 == oldMEM.rd) {
+            // EX -> EX fwd (from instr just finished EX, moving to MEM)
+            if (!oldEX.isNop && oldEX.writesRd && oldEX.rd != 0) {
+                uint64_t fwdVal = oldEX.arithResult; 
+                if (exInput.readsRs1 && exInput.rs1 == oldEX.rd) {
                     exInput.op1Val = fwdVal;
                 }
-                if (exInput.readsRs2 && exInput.rs2 == oldMEM.rd) {
+                if (exInput.readsRs2 && exInput.rs2 == oldEX.rd) {
                     exInput.op2Val = fwdVal;
                 }
             }
 
-            // WB -> EX forwarding (only if not alr forwarded from MEM)
+            // MEM -> EX forwarding (from instruction that just finished MEM, moving to WB)
+            // Only if not forwarded from EX (priority to youngest)
+            if (!oldMEM.isNop && oldMEM.writesRd && oldMEM.rd != 0) {
+                uint64_t fwdVal = oldMEM.readsMem ? oldMEM.memResult : oldMEM.arithResult;
+                if (exInput.readsRs1 && exInput.rs1 == oldMEM.rd &&
+                    !(oldEX.writesRd && oldEX.rd == oldMEM.rd && oldEX.rd != 0)) {
+                    exInput.op1Val = fwdVal;
+                }
+                if (exInput.readsRs2 && exInput.rs2 == oldMEM.rd &&
+                    !(oldEX.writesRd && oldEX.rd == oldMEM.rd && oldEX.rd != 0)) {
+                    exInput.op2Val = fwdVal;
+                }
+            }
+
+            // WB -> EX forwarding (only if not alr forwarded from MEM or EX)
             if (!oldWB.isNop && oldWB.writesRd && oldWB.rd != 0) {
                 uint64_t fwdVal = oldWB.readsMem ? oldWB.memResult : oldWB.arithResult;
                 if (exInput.readsRs1 && exInput.rs1 == oldWB.rd &&
-                    !(oldMEM.writesRd && oldMEM.rd == oldWB.rd)) {
+                    !(oldMEM.writesRd && oldMEM.rd == oldWB.rd && oldMEM.rd != 0) &&
+                    !(oldEX.writesRd && oldEX.rd == oldWB.rd && oldEX.rd != 0)) {
                     exInput.op1Val = fwdVal;
                 }
                 if (exInput.readsRs2 && exInput.rs2 == oldWB.rd &&
-                    !(oldMEM.writesRd && oldMEM.rd == oldWB.rd)) {
+                    !(oldMEM.writesRd && oldMEM.rd == oldWB.rd && oldMEM.rd != 0) &&
+                    !(oldEX.writesRd && oldEX.rd == oldWB.rd && oldEX.rd != 0)) {
                     exInput.op2Val = fwdVal;
                 }
             }
 
             newEX = simulator->simEX(exInput);
         } else {
-            // bubble between ID and EX when stalling on load‑use or branch dependency
+            // bubble btwn ID and EX when stalling on load-use/branch dep
             newEX = nop(BUBBLE);
         }
 
@@ -273,21 +354,26 @@ Status runCycles(uint64_t cycles) {
         } else {
             // forward operands for instruction currently in ID (idEval)
             if (idEval.readsRs1 && idEval.rs1 != 0) {
-                if (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd == idEval.rs1) {
-                    idEval.op1Val = oldEX.arithResult;
-                } else if (!oldMEM.isNop && oldMEM.writesRd && oldMEM.rd == idEval.rs1) {
-                    uint64_t fwdVal = oldMEM.readsMem ? oldMEM.memResult : oldMEM.arithResult;
+                // newMEM (was oldEX) -> ID
+                if (!newMEM.isNop && newMEM.writesRd && newMEM.rd == idEval.rs1) {
+                    uint64_t fwdVal = newMEM.readsMem ? newMEM.memResult : newMEM.arithResult;
                     idEval.op1Val = fwdVal;
+                // newWB (was oldMEM) -> ID
+                } else if (!newWB.isNop && newWB.writesRd && newWB.rd == idEval.rs1) {
+                    uint64_t fwdVal = newWB.readsMem ? newWB.memResult : newWB.arithResult;
+                    idEval.op1Val = fwdVal;
+                // oldWB (was oldWB) -> ID
                 } else if (!oldWB.isNop && oldWB.writesRd && oldWB.rd == idEval.rs1) {
                     uint64_t fwdVal = oldWB.readsMem ? oldWB.memResult : oldWB.arithResult;
                     idEval.op1Val = fwdVal;
                 }
             }
             if (idEval.readsRs2 && idEval.rs2 != 0) {
-                if (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd == idEval.rs2) {
-                    idEval.op2Val = oldEX.arithResult;
-                } else if (!oldMEM.isNop && oldMEM.writesRd && oldMEM.rd == idEval.rs2) {
-                    uint64_t fwdVal = oldMEM.readsMem ? oldMEM.memResult : oldMEM.arithResult;
+                if (!newMEM.isNop && newMEM.writesRd && newMEM.rd == idEval.rs2) {
+                    uint64_t fwdVal = newMEM.readsMem ? newMEM.memResult : newMEM.arithResult;
+                    idEval.op2Val = fwdVal;
+                } else if (!newWB.isNop && newWB.writesRd && newWB.rd == idEval.rs2) {
+                    uint64_t fwdVal = newWB.readsMem ? newWB.memResult : newWB.arithResult;
                     idEval.op2Val = fwdVal;
                 } else if (!oldWB.isNop && oldWB.writesRd && oldWB.rd == idEval.rs2) {
                     uint64_t fwdVal = oldWB.readsMem ? oldWB.memResult : oldWB.arithResult;
@@ -302,43 +388,7 @@ Status runCycles(uint64_t cycles) {
             bool branchUsesRegs = isBranchInstr || isJalrInstr;  // needs operands
             bool isControlFlow  = branchUsesRegs || isJalInstr;   // redirects PC
 
-            // detect branch-dependent stalls (arith-branch and load-branch) against EX
-            if (branchUsesRegs) {
-                bool dependsOnEXLoad = (!oldEX.isNop && oldEX.readsMem && oldEX.rd != 0 &&
-                                        ((idEval.readsRs1 && idEval.rs1 == oldEX.rd) ||
-                                         (idEval.readsRs2 && idEval.rs2 == oldEX.rd)));
-                bool dependsOnEXArith = (!oldEX.isNop && oldEX.writesRd && !oldEX.readsMem && oldEX.rd != 0 &&
-                                         ((idEval.readsRs1 && idEval.rs1 == oldEX.rd) ||
-                                          (idEval.readsRs2 && idEval.rs2 == oldEX.rd)));
-                if (dependsOnEXLoad) {
-                    branchDataStall = true;
-                    if (loadBranchStallLeft == 0) {
-                        loadBranchStallLeft = 2;  // two-cycle stall window
-                        loadUseEvent = true;      // count once per hazard
-                    }
-                } else if (dependsOnEXArith) {
-                    branchDataStall = true;  // single-cycle stall
-                }
-            }
-
-            // continue stall through remaining load->branch stall cycles
-            if (loadBranchStallLeft > 0) {
-                branchDataStall = true;
-            }
-
-            // bool iStallNow = iStallActiveNow || iMissThisCycle; // removed to prevent dropping instruction
-
             bool idWillAdvance = !(loadUseStall || branchDataStall || loadBranchStallLeft > 0 || dStallNow);
-            if (idWillAdvance) {
-                if (iStallActiveNow) {
-                    newID = nop(BUBBLE);
-                } else {
-                    idDecodedNext = simulator->simID(oldIF);
-                    newID = idDecodedNext;
-                }
-            } else {
-                newID = oldID;
-            }
 
             // illegal instruction detected in ID stage (current ID instruction)
             if (!idEval.isLegal) {
@@ -350,6 +400,26 @@ Status runCycles(uint64_t cycles) {
                 uint64_t fallThrough = idEval.PC + 4;
                 branchTaken = (resolved.nextPC != fallThrough);
                 nextPC = resolved.nextPC;
+            }
+
+            // Decide what enters ID from IF this cycle
+            if (idWillAdvance) {
+                if (branchTaken && !idIllegalException && !wbMemException) {
+                    // wrong‑path instruction in IF; squash before decode so din is not counted
+                    newID = nop(SQUASHED);
+                    
+                    // flush I-Cache stall state
+                    iStallLeft = 0;
+                    wasIStalled = false;
+                    stalledForHazard = false; // Hazard state doesn't apply if we branch
+                    
+                } else {
+                    // alw decode oldIF; If IF stalled, oldIF is BUBBLE
+                    idDecodedNext = simulator->simID(oldIF);
+                    newID = idDecodedNext;
+                }
+            } else {
+                newID = oldID;
             }
         }
 
@@ -380,10 +450,21 @@ Status runCycles(uint64_t cycles) {
             newEX = nop(SQUASHED);
             newMEM = nop(SQUASHED);
             // newWB already holds excepting instruction
+            
+            // FIX: Clear stall state on exception too
+            wasIStalled = false;
+            stalledForHazard = false;
+            iStallLeft = 0;
+            
         } else if (idIllegalException) {
             newIF = nop(SQUASHED);
             newID = nop(SQUASHED);
             // EX/MEM/WB keep their older instructions
+            
+            // FIX: Clear stall state on exception too
+            wasIStalled = false;
+            stalledForHazard = false;
+            iStallLeft = 0;
         }
 
         // Apply deferred IF squash for taken control transfer
