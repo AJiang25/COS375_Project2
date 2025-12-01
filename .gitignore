@@ -8,6 +8,7 @@ test/*.elf
 
 # Simulator files
 sim_funct
+sim_cycle
 test/fib.bin
 test/fib.elf
 test/illegal.bin
@@ -15,3 +16,4 @@ test/illegal.elf
 
 # Misc
 .DS_Store
+.vscode

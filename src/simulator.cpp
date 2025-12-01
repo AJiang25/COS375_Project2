@@ -466,7 +466,12 @@ Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
     // ref output has 2 legal + 1 illegal MUL; 
     // illegal MUL must be counted, treat HALT as executed instruction
     // count every non-NOP instruction as dynamic
-    if (!inst.isNop) { 
+    // if (!inst.isNop) { 
+    //     inst.instructionID = din++;
+    // }
+
+    // FIX: Only count valid, legal instructions (avoids counting ILLEGAL instruction at 0x40)
+    if (!inst.isNop && inst.isLegal) { 
         inst.instructionID = din++;
     }
 
