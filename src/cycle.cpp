@@ -247,9 +247,9 @@ Status runCycles(uint64_t cycles) {
                 bool dHit = dCache->access(memInput.memAddress,
                                            memInput.writesMem ? CACHE_WRITE : CACHE_READ);
                 if (!dHit) {
-                    // miss penalty: instr stays in MEM for missLatency cycles total
-                    // current cycle is first cycle, so add (missLatency - 1) more
-                    dStallLeft += dCache->config.missLatency - 1;
+                    // miss penalty: stall for full missLatency cycles AFTER this
+                    // miss cycle so total visible penalty matches ref timing
+                    dStallLeft += dCache->config.missLatency;
                     dMissThisCycle = true;
                 }
             }
@@ -334,18 +334,17 @@ Status runCycles(uint64_t cycles) {
             }
         }
 
-        // from ID stage's perspective, treat miss cycle plus all subsequent
-        // stall cycles (tracked via wasIStalled) as i-cache stall time
-        bool iStallForID = iStallActiveNow || iMissThisCycle || wasIStalledBefore;
+        // from ID's view, stall during the active miss window + the cycle
+        // immediately following completion (tracked w/ wasIStalledBefore)
+        // the first miss cycle should only block decode if IF doesn't yet hold
+        // a real instruction (pipeline still idle)
+        bool oldIFIsIdle = (oldIF.isNop && oldIF.status == IDLE);
+        bool iStallForID = iStallActiveNow || wasIStalledBefore || (iMissThisCycle && oldIFIsIdle);
 
         // --------------------------------------------------------
         // EX stage: ID -> EX with forwarding (unless stalling)
         // --------------------------------------------------------
-        if (dMissThisCycle) {
-            // If D-miss starts, instr moved to MEM
-            // EX becomes bubble (no dup load)
-            newEX = nop(BUBBLE);
-        } else if (dStallActive) {
+        if (dStallActive) {
             // If D-stall continues, hold existing EX (bubble)
             newEX = oldEX; 
         } else if (illegalInID) {
@@ -410,8 +409,9 @@ Status runCycles(uint64_t cycles) {
         Simulator::Instruction idDecodedNext = nop(BUBBLE);  // will hold decode of oldIF if we advance
         Simulator::Instruction idEval = oldID;                // instruction presently in ID
 
-        if (dStallNow) {
-            newID = oldID;  // freeze during D stall
+        if (dStallActive) {
+            // D-cache stall in progress: younger stages see a bubble until MEM completes
+            newID = nop(BUBBLE);
         } else if (applyDeferredSquashToID) {
             // wrong-path IF from prior cycle: render as squashed and skip decode
             newID = nop(SQUASHED);
@@ -453,7 +453,7 @@ Status runCycles(uint64_t cycles) {
             bool branchUsesRegs = isBranchInstr || isJalrInstr;  // needs operands
             bool isControlFlow  = branchUsesRegs || isJalInstr;   // redirects PC
 
-            bool idWillAdvance = !(loadUseStall || branchDataStall || loadBranchStallLeft > 0 || dStallNow);
+            bool idWillAdvance = !(loadUseStall || branchDataStall || loadBranchStallLeft > 0 || dStallActive);
 
             // illegal instruction detected in ID stage for the instruction
             // currently resident in ID (idEval); handles cases where an
