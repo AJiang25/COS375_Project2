@@ -92,12 +92,12 @@ Status runCycles(uint64_t cycles) {
 
     while (cycles == 0 || count < cycles) {
 
-        // apply any pending squash of IF from prior taken branch (for visibility)
-        if (squashNextIF) {
-            pipelineInfo.ifInst = nop(SQUASHED);
-            pipelineInfo.idInst = nop(SQUASHED);
-            squashNextIF = false;
-        }
+        // // apply any pending squash of IF from prior taken branch (for visibility)
+        // if (squashNextIF) {
+        //     pipelineInfo.ifInst = nop(SQUASHED);
+        //     pipelineInfo.idInst = nop(SQUASHED);
+        //     squashNextIF = false;
+        // }
 
         pipeState.cycle = cycleCount;
 
@@ -120,6 +120,16 @@ Status runCycles(uint64_t cycles) {
         bool idIllegalException  = false;
         bool wbMemException      = false;
 
+        // if prev cycle scheduled a squash of the wrong‑path IF/ID,
+        // rem it here and clear the flag. then render the squash
+        // in the ID stage (the wrong‑path IF from last cycle) but allow
+        // the new IF to fetch from corrected PC
+        bool applyDeferredSquashToID = false;
+        bool deferredSquashRenderedInID = false;
+        if (squashNextIF) {
+            applyDeferredSquashToID = true;
+            squashNextIF = false;
+        }
 
         // default next PC is fall‑through
         uint64_t nextPC = PC + 4;
@@ -139,8 +149,19 @@ Status runCycles(uint64_t cycles) {
             newWB = nop(BUBBLE);
         } else {
             newWB = simulator->simWB(oldMEM);
+            // Preserve status from prior stage for NOPs (idle/bubble propagation)
+            if (newWB.isNop) {
+                newWB.status = oldMEM.status;
+            }
             if (!newWB.isLegal || newWB.memException) {
+                std::cerr << "[cycle " << cycleCount << "] WB exception @ PC 0x" << std::hex
+                          << oldMEM.PC << std::dec
+                          << " (memException=" << newWB.memException << ", legal="
+                          << newWB.isLegal << ")\n";
                 wbMemException = true;
+                if (simulator != nullptr) {
+                    simulator->disableDinCounting();
+                }
                 nextPC = newWB.nextPC;  // should be EXCEPTION_HANDLER (0x8000)
             }
         }
@@ -190,7 +211,11 @@ Status runCycles(uint64_t cycles) {
                         loadUseEvent = true;      // count once per hazard
                     }
                 } else if (dependsOnEXArith) {
-                    // branchDataStall = true; 
+                    // one-cycle arithmetic-branch stall
+                    branchDataStall = true;
+                    if (loadBranchStallLeft == 0) {
+                        loadBranchStallLeft = 1;
+                    }
                 }
             }
         }
@@ -222,7 +247,8 @@ Status runCycles(uint64_t cycles) {
                 bool dHit = dCache->access(memInput.memAddress,
                                            memInput.writesMem ? CACHE_WRITE : CACHE_READ);
                 if (!dHit) {
-                    // Sub 1 from miss penalty as current cycle counts
+                    // miss penalty: instr stays in MEM for missLatency cycles total
+                    // current cycle is first cycle, so add (missLatency - 1) more
                     dStallLeft += dCache->config.missLatency - 1;
                     dMissThisCycle = true;
                 }
@@ -234,8 +260,13 @@ Status runCycles(uint64_t cycles) {
             } else {
                 newMEM = simulator->simMEM(memInput);
             }
+            // preserve status from prior stage for NOPs
+            if (newMEM.isNop) {
+                newMEM.status = oldEX.status;
+            }
         } else {
-            newMEM = nop(BUBBLE);
+            // EX was NOP, propagate its status to MEM
+            newMEM = nop(oldEX.status);
         }
 
         // if MEM is stalled from prior miss, WB gets a bubble
@@ -249,37 +280,63 @@ Status runCycles(uint64_t cycles) {
         // IF stage (prefetch for this cycle) to know I-miss before ID gating
         // --------------------------------------------------------
         bool iStallActiveNow = (iStallLeft > 0);
+        bool wasIStalledBefore = wasIStalled;  // capture before IF logic clears it
         Simulator::Instruction fetchedIF = oldIF;
         
         // If pipeline frozen (hazards/D-stall), keep oldIF
         if (dStallNow || loadUseStall || branchDataStall || loadBranchStallLeft > 0 || idIllegalException || wbMemException) {
-            fetchedIF = oldIF;  // frozen due to hazards or D stall
+            // frozen bc hazards or D stall: keep showing same instruction/PC
+            fetchedIF = oldIF;
+            fetchedIF.PC = PC;
+            // during branch data stall, IF is speculative (waiting on branch resolution)
+            if (branchDataStall || loadBranchStallLeft > 0) {
+                fetchedIF.status = SPECULATIVE;
+            } else {
+                fetchedIF.status = NORMAL;
+            }
             nextPC = PC;        // don't adv PC when stalled
             stalledForHazard = true; // flag we hold oldIF due to hazard
         } else if (iStallActiveNow) {
-            fetchedIF = nop(BUBBLE); // pipeline moving, Fetch Stalled -> Bubble
+            // I‑cache miss penalty in progress: keep showing the same PC in IF
+            fetchedIF = oldIF;
+            fetchedIF.PC = PC;
+            fetchedIF.status = BUBBLE;
             wasIStalled = true;
             stalledForHazard = false;
         } else {
             if (wasIStalled || stalledForHazard) {
-                // Resume after stall OR hazard: Fetch WITHOUT accessing cache (penalty paid / already fetched)
+                // resume after stall OR hazard: fetch WITHOUT re‑accessing cache
                 fetchedIF = simulator->simIF(PC);
                 wasIStalled = false;
                 stalledForHazard = false;
             } else {
-                // Normal operation: Access Cache
+                // normal operation: probe I‑cache for this PC
                 bool iHit = iCache->access(PC, CACHE_READ);
                 if (!iHit) {
-                    // Subtract 1 from miss penalty
-                    iStallLeft += iCache->config.missLatency - 1;
+                    // miss penalty: stall for missLatency cycles total (in addition to this miss cycle)
+                    // count down iStallLeft @ start of each cycle, so setting it to missLatency
+                    // here gives exactly missLatency stall cycles *AFTERRR* this miss cycle 
+                    // => matching reference timing
+                    iStallLeft += iCache->config.missLatency;
                     iMissThisCycle = true;
-                    fetchedIF = nop(BUBBLE); // pipeline moving, Miss -> Bubble
+                    // keep showing same PC in IF; ID will receive a bubble
+                    fetchedIF = oldIF;
+                    fetchedIF.PC = PC;
+                    if (oldIF.status == IDLE) {
+                        fetchedIF.status = IDLE;
+                    } else {
+                        fetchedIF.status = BUBBLE;
+                    }
                     wasIStalled = true;
                 } else {
                     fetchedIF = simulator->simIF(PC);
                 }
             }
         }
+
+        // from ID stage's perspective, treat miss cycle plus all subsequent
+        // stall cycles (tracked via wasIStalled) as i-cache stall time
+        bool iStallForID = iStallActiveNow || iMissThisCycle || wasIStalledBefore;
 
         // --------------------------------------------------------
         // EX stage: ID -> EX with forwarding (unless stalling)
@@ -337,6 +394,10 @@ Status runCycles(uint64_t cycles) {
             }
 
             newEX = simulator->simEX(exInput);
+            // preserve status from prior stage for NOPs
+            if (newEX.isNop) {
+                newEX.status = oldID.status;
+            }
         } else {
             // bubble btwn ID and EX when stalling on load-use/branch dep
             newEX = nop(BUBBLE);
@@ -351,6 +412,10 @@ Status runCycles(uint64_t cycles) {
 
         if (dStallNow) {
             newID = oldID;  // freeze during D stall
+        } else if (applyDeferredSquashToID) {
+            // wrong-path IF from prior cycle: render as squashed and skip decode
+            newID = nop(SQUASHED);
+            deferredSquashRenderedInID = true;
         } else {
             // forward operands for instruction currently in ID (idEval)
             if (idEval.readsRs1 && idEval.rs1 != 0) {
@@ -390,9 +455,17 @@ Status runCycles(uint64_t cycles) {
 
             bool idWillAdvance = !(loadUseStall || branchDataStall || loadBranchStallLeft > 0 || dStallNow);
 
-            // illegal instruction detected in ID stage (current ID instruction)
+            // illegal instruction detected in ID stage for the instruction
+            // currently resident in ID (idEval); handles cases where an
+            // illegal instruction was already in ID and we not advancing
+            // due bc stall
             if (!idEval.isLegal) {
+                std::cerr << "[cycle " << cycleCount << "] ID illegal (resident) PC 0x" << std::hex
+                          << idEval.PC << std::dec << "\n";
                 idIllegalException = true;
+                if (simulator != nullptr) {
+                    simulator->disableDinCounting();
+                }
                 nextPC = idEval.nextPC;  // EXCEPTION_HANDLER
             } else if (idWillAdvance && isControlFlow && !wbMemException) {
                 // Recompute control-flow decision for the instruction in ID after forwarding
@@ -413,14 +486,49 @@ Status runCycles(uint64_t cycles) {
                     wasIStalled = false;
                     stalledForHazard = false; // Hazard state doesn't apply if we branch
                     
+                } else if (iStallForID) {
+                    // I-cache stall: insert bubble in ID, don't decode
+                    // on first miss cycle, keep ID as IDLE NOP so initial
+                    // pipeline state (cycle 0) matches ref; on subsequent stall
+                    // cycles, insert BUBBLEs
+                    if (iMissThisCycle && oldIF.status == IDLE) {
+                        newID = nop(IDLE);
+                    } else {
+                        newID = nop(BUBBLE);
+                    }
                 } else {
-                    // alw decode oldIF; If IF stalled, oldIF is BUBBLE
+                    // Normal decode of oldIF
                     idDecodedNext = simulator->simID(oldIF);
+
+                    // if *incoming* instruction (from IF) is illegal, raise ID-stage
+                    // illegal exception immediately so redirect to handler happens
+                    // in the same cycle this instruction first appears in ID
+                    if (!idDecodedNext.isLegal) {
+                        std::cerr << "[cycle " << cycleCount
+                                  << "] ID illegal (new decode) PC 0x" << std::hex
+                                  << oldIF.PC << std::dec << "\n";
+                        idIllegalException = true;
+                        if (simulator != nullptr) {
+                            simulator->disableDinCounting();
+                        }
+                        nextPC = idDecodedNext.nextPC;  // EXCEPTION_HANDLER
+                    }
+
                     newID = idDecodedNext;
+                    // preserve status from prior stage for NOPs (idle/bubble propagation)
+                    if (newID.isNop) {
+                        newID.status = oldIF.status;
+                    }
                 }
             } else {
                 newID = oldID;
             }
+        }
+
+        // if a squash was deferred from previous cycle (branch/exception),
+        // render it in ID now (wrong‑path IF from last cycle)
+        if (applyDeferredSquashToID && !deferredSquashRenderedInID) {
+            newID = nop(SQUASHED);
         }
 
         // --------------------------------------------------------
@@ -445,26 +553,33 @@ Status runCycles(uint64_t cycles) {
         // ID-detected illegal: squash IF/ID only; allow older EX/MEM/WB to complete
         // WB-detected memory exception: squash IF/ID/EX/MEM (younger than faulting)
         if (wbMemException) {
-            newIF = nop(SQUASHED);
+            // squash younger instructions (ID/EX/MEM) immediately;
+            // IF shows handler PC with NORMAL status (no annotation)
+            newIF = simulator->simIF(nextPC);  // fetch from handler
+            newIF.PC = nextPC;
+            newIF.status = NORMAL;
             newID = nop(SQUASHED);
             newEX = nop(SQUASHED);
             newMEM = nop(SQUASHED);
-            // newWB already holds excepting instruction
-            
-            // FIX: Clear stall state on exception too
+            // clear any IF stall state since we redirect fetch
             wasIStalled = false;
             stalledForHazard = false;
             iStallLeft = 0;
-            
         } else if (idIllegalException) {
-            newIF = nop(SQUASHED);
-            newID = nop(SQUASHED);
-            // EX/MEM/WB keep their older instructions
-            
-            // FIX: Clear stall state on exception too
+            // ID-detected illegal: squash IF/ID only; allow older EX/MEM/WB to complete
+            // dont fetch from handler in this cycle; redirect to handler PC via PC update logic
+            // so illegal instruction is still visible in ID for this cycle; wrong-path
+            // IF/ID will be rendered as squashed in next cycle via squashNextIF / applyDeferredSquashToID
+            newIF = fetchedIF;
+            newIF.status = NORMAL;
+            // clear any IF stall state since we redirect fetch
             wasIStalled = false;
             stalledForHazard = false;
             iStallLeft = 0;
+
+            // request deferred squash of IF/ID in next cycle (for display),
+            // similar to how control hazards are rendered
+            squashNextIF = true;
         }
 
         // Apply deferred IF squash for taken control transfer

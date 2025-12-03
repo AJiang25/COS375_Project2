@@ -342,9 +342,9 @@ static void handleSpecial(uint64_t curInst, std::ostream &out_stream) {
 }
 
 
-static void printIFPC(uint64_t pc, StageStatus status, std::ostream &pipeState) {
+static void printIFPC(uint64_t pc, StageStatus /*status*/, std::ostream &pipeState) {
     std::ostringstream sb;
-    sb << " Inst at 0x" << std::hex << pc << stageStatusStr.at(status);
+    sb << " Inst at 0x" << std::hex << pc;
     pipeState << std::left << std::setw(25) << sb.str();
 }
 

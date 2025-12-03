@@ -12,6 +12,7 @@ Simulator::Simulator() {
     memory = nullptr;
     regData.reg = {};
     din = 0;
+    countDin = true;
 }
 
 Simulator::~Simulator() {
@@ -470,8 +471,8 @@ Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
     //     inst.instructionID = din++;
     // }
 
-    // FIX: Only count valid, legal instructions (avoids counting ILLEGAL instruction at 0x40)
-    if (!inst.isNop && inst.isLegal) { 
+    // FIX: Only count valid, legal instructions before an exception disables counting
+    if (!inst.isNop && countDin) { 
         inst.instructionID = din++;
     }
 
@@ -479,7 +480,9 @@ Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
     // Illegal instruction: exception handled via EXCEPTION_HANDLER PC
     if (!inst.isLegal) {
         inst.nextPC = EXCEPTION_HANDLER;
-        inst.status = SQUASHED; // normal will fail diff against ref output?
+        // leave stage status control to the pipeline in cycle.cpp
+        // instruction in ID should still display as ILLEGAL and not squashed
+        inst.status = NORMAL;
         return inst;
     }
 
@@ -532,7 +535,9 @@ Simulator::Instruction Simulator::simWB(Simulator::Instruction inst) {
     // when they reach WB; don't write back to the architectural state
     if (!inst.isLegal || inst.memException) {
         inst.nextPC = EXCEPTION_HANDLER;
-        inst.status = SQUASHED; // normal will fail diff against ref output?
+        // let pipeline handle squashing of younger insturcionts
+        // excepting instruction itself shouldn't be marked squashed
+        inst.status = NORMAL;
         return inst;
     }
 
