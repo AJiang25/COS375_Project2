@@ -13,6 +13,7 @@ static Cache* iCache = nullptr;
 static Cache* dCache = nullptr;
 static std::string output;
 static uint64_t cycleCount = 0;
+static uint64_t dynRetired = 0;
 
 // PC alw holds the address to be used by IF on the *next* cycle
 static uint64_t PC = 0;
@@ -64,6 +65,7 @@ Status initSimulator(CacheConfig& iCacheConfig, CacheConfig& dCacheConfig, Memor
     iCache = new Cache(iCacheConfig, I_CACHE);
     dCache = new Cache(dCacheConfig, D_CACHE);
     cycleCount = 0;
+    dynRetired = 0;
     PC = 0;
     loadUseStallCount = 0;
     iStallLeft = dStallLeft = 0;
@@ -153,6 +155,14 @@ Status runCycles(uint64_t cycles) {
             if (newWB.isNop) {
                 newWB.status = oldMEM.status;
             }
+
+            // Retired dynamic-instruction counting:
+            //  - Count all non-NOP, legal, non-exception instructions that were
+            //    originally counted @ decode (dinCounted)
+            if (!newWB.isNop && newWB.isLegal && !newWB.memException && newWB.dinCounted) {
+                dynRetired++;
+            }
+
             if (!newWB.isLegal || newWB.memException) {
                 std::cerr << "[cycle " << cycleCount << "] WB exception @ PC 0x" << std::hex
                           << oldMEM.PC << std::dec
@@ -160,6 +170,9 @@ Status runCycles(uint64_t cycles) {
                           << newWB.isLegal << ")\n";
                 wbMemException = true;
                 if (simulator != nullptr) {
+                    std::cerr << "[DIN] disable cycle=" << cycleCount
+                              << " reason=WB-exc PC=0x" << std::hex << oldMEM.PC
+                              << std::dec << std::endl;
                     simulator->disableDinCounting();
                 }
                 nextPC = newWB.nextPC;  // should be EXCEPTION_HANDLER (0x8000)
@@ -225,6 +238,17 @@ Status runCycles(uint64_t cycles) {
             branchDataStall = true;
         }
 
+        if (loadUseStall || branchDataStall) {
+            std::cerr << "[HZD] cycle " << cycleCount
+                      << " loadUse=" << loadUseStall
+                      << " brData=" << branchDataStall
+                      << " ID.PC=0x" << std::hex << oldID.PC
+                      << " EX.PC=0x" << oldEX.PC
+                      << " MEM.PC=0x" << oldMEM.PC
+                      << " loadBranchStallLeft=" << std::dec << loadBranchStallLeft
+                      << std::endl;
+        }
+
         bool iMissThisCycle = false;
 
         // --------------------------------------------------------
@@ -251,6 +275,16 @@ Status runCycles(uint64_t cycles) {
                     // miss cycle so total visible penalty matches ref timing
                     dStallLeft += dCache->config.missLatency;
                     dMissThisCycle = true;
+                    std::cerr << "[DDBG] cycle " << cycleCount
+                              << " D-miss PC=0x" << std::hex << oldEX.PC
+                              << " addr=0x" << memInput.memAddress
+                              << " missLat=" << std::dec << dCache->config.missLatency
+                              << std::endl;
+                } else {
+                    std::cerr << "[DDBG] cycle " << cycleCount
+                              << " D-hit  PC=0x" << std::hex << oldEX.PC
+                              << " addr=0x" << memInput.memAddress
+                              << std::dec << std::endl;
                 }
             }
 
@@ -283,9 +317,11 @@ Status runCycles(uint64_t cycles) {
         bool wasIStalledBefore = wasIStalled;  // capture before IF logic clears it
         Simulator::Instruction fetchedIF = oldIF;
         
-        // If pipeline frozen (hazards/D-stall), keep oldIF
-        if (dStallNow || loadUseStall || branchDataStall || loadBranchStallLeft > 0 || idIllegalException || wbMemException) {
-            // frozen bc hazards or D stall: keep showing same instruction/PC
+        // if pipeline frozen (hazards/D-stall), keep oldIF but retag its PC w/
+        // current global PC (matches correct behavior from illegal
+        // and ensures IF shows the PC that would've been fetched)
+        if (dStallNow || loadUseStall || branchDataStall || loadBranchStallLeft > 0 ||
+            idIllegalException || wbMemException) {
             fetchedIF = oldIF;
             fetchedIF.PC = PC;
             // during branch data stall, IF is speculative (waiting on branch resolution)
@@ -464,6 +500,9 @@ Status runCycles(uint64_t cycles) {
                           << idEval.PC << std::dec << "\n";
                 idIllegalException = true;
                 if (simulator != nullptr) {
+                    std::cerr << "[DIN] disable cycle=" << cycleCount
+                              << " reason=ID-illegal-res PC=0x" << std::hex << idEval.PC
+                              << std::dec << std::endl;
                     simulator->disableDinCounting();
                 }
                 nextPC = idEval.nextPC;  // EXCEPTION_HANDLER
@@ -472,6 +511,13 @@ Status runCycles(uint64_t cycles) {
                 Simulator::Instruction resolved = simulator->simNextPCResolution(idEval);
                 uint64_t fallThrough = idEval.PC + 4;
                 branchTaken = (resolved.nextPC != fallThrough);
+                if (branchTaken) {
+                    std::cerr << "[BR] cycle " << cycleCount
+                              << " ID.PC=0x" << std::hex << idEval.PC
+                              << " nextPC=0x" << resolved.nextPC
+                              << " fall=0x" << fallThrough
+                              << std::dec << std::endl;
+                }
                 nextPC = resolved.nextPC;
             }
 
@@ -507,8 +553,16 @@ Status runCycles(uint64_t cycles) {
                         std::cerr << "[cycle " << cycleCount
                                   << "] ID illegal (new decode) PC 0x" << std::hex
                                   << oldIF.PC << std::dec << "\n";
+                        // count this illegal instruction as dynamic instruction
+                        // exactly once, using dinCounted tag from decode
+                        if (idDecodedNext.dinCounted) {
+                            dynRetired++;
+                        }
                         idIllegalException = true;
                         if (simulator != nullptr) {
+                            std::cerr << "[DIN] disable cycle=" << cycleCount
+                                      << " reason=ID-illegal-new PC=0x" << std::hex << oldIF.PC
+                                      << std::dec << std::endl;
                             simulator->disableDinCounting();
                         }
                         nextPC = idDecodedNext.nextPC;  // EXCEPTION_HANDLER
@@ -522,6 +576,22 @@ Status runCycles(uint64_t cycles) {
                 }
             } else {
                 newID = oldID;
+            }
+
+            // DEBUG: track when ID actually performs new decode vs holding/bubbling
+            // scoped to fib run for log focus
+            if (output.find("fib") != std::string::npos) {
+                std::cerr << "[IDDBG] cycle " << cycleCount
+                          << " idWillAdvance=" << idWillAdvance
+                          << " iStallForID=" << iStallForID
+                          << " loadUseStall=" << loadUseStall
+                          << " branchDataStall=" << branchDataStall
+                          << " dStallActive=" << dStallActive
+                          << " oldIF.PC=0x" << std::hex << oldIF.PC
+                          << " oldID.PC=0x" << oldID.PC
+                          << " newID.PC=0x" << newID.PC
+                          << " newID.status=" << newID.status
+                          << std::dec << std::endl;
             }
         }
 
@@ -593,6 +663,28 @@ Status runCycles(uint64_t cycles) {
         //  - Otherwise: use nextPC from branch / exception logic
         // --------------------------------------------------------
         bool freezePC = loadUseStall || branchDataStall || (loadBranchStallLeft > 0) || dStallNow || (iStallLeft > 0) || iMissThisCycle;
+
+        // DEBUG: early setup and final loop/exception region
+        if ((cycleCount >= 15 && cycleCount <= 25) ||
+            (cycleCount >= 140 && cycleCount <= 160)) {
+            std::cerr << "[DBG] cycle=" << cycleCount
+                      << " PC=0x" << std::hex << PC << std::dec
+                      << " nextPC=0x" << std::hex << nextPC << std::dec
+                      << " freezePC=" << freezePC
+                      << " dStallActive=" << dStallActive
+                      << " dMissThis=" << dMissThisCycle
+                      << " dStallLeft=" << dStallLeft
+                      << " iStallLeft=" << iStallLeft
+                      << " iMissThis=" << iMissThisCycle
+                      << " loadUseStall=" << loadUseStall
+                      << " branchDataStall=" << branchDataStall
+                      << " loadBranchStallLeft=" << loadBranchStallLeft
+                      << " wbMemException=" << wbMemException
+                      << " idIllegalException=" << idIllegalException
+                      << " oldIF.PC=0x" << std::hex << oldIF.PC
+                      << " newIF.PC=0x" << newIF.PC << std::dec
+                      << std::endl;
+        }
 
         // WB exception must take priority and force PC to handler
         if (wbMemException) {
@@ -670,8 +762,11 @@ Status runTillHalt() {
 Status finalizeSimulator() {
     simulator->dumpRegMem(output);
 
-    SimulationStats stats{};  // TODO incomplete implementation
-    stats.dynamicInstructions = simulator->getDin();
+    SimulationStats stats{};
+    // use retired dynamic-instruction count from pipeline behavior,
+    // instead of raw decode count, so squashed or re-decoded
+    // instructions aren't double-counted
+    stats.dynamicInstructions = dynRetired;
     stats.totalCycles = cycleCount;
 
     // cache hit/miss counts from cache simulator

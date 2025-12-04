@@ -467,13 +467,14 @@ Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
     // ref output has 2 legal + 1 illegal MUL; 
     // illegal MUL must be counted, treat HALT as executed instruction
     // count every non-NOP instruction as dynamic
-    // if (!inst.isNop) { 
-    //     inst.instructionID = din++;
-    // }
-
-    // FIX: Only count valid, legal instructions before an exception disables counting
+    // count every non-NOP dynamic instruction while counting enabled
+    // track this instruction was counted so can later derive
+    // retired dynamic instructions in pipeline
     if (!inst.isNop && countDin) { 
+        std::cerr << "[DIN] count PC=0x" << std::hex << inst.PC
+                  << " din=" << std::dec << din << std::endl;
         inst.instructionID = din++;
+        inst.dinCounted = true;
     }
 
     // Handle Exceptions?
@@ -484,6 +485,14 @@ Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
         // instruction in ID should still display as ILLEGAL and not squashed
         inst.status = NORMAL;
         return inst;
+    }
+
+    // after HALT has been decoded/counted, stop counting further
+    // dynamic instructions to ensure any instructions fetched
+    // speculatively after HALT (illegal following HALT in fib)
+    // doesn't contribute to dynamic-instruction statistics
+    if (inst.isHalt) {
+        countDin = false;
     }
 
     // collect register operands (for ALU, branches, jalr, loads/stores)

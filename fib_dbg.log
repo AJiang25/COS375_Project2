@@ -1,0 +1,307 @@
+[IDDBG] cycle 0 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x0 oldID.PC=0x0 newID.PC=0x0 newID.status=2
+[IDDBG] cycle 1 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x0 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[IDDBG] cycle 2 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x0 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[IDDBG] cycle 3 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x0 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[IDDBG] cycle 4 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x0 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[IDDBG] cycle 5 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x0 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[DIN] count PC=0x0 din=0
+[IDDBG] cycle 6 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x0 oldID.PC=0x0 newID.PC=0x0 newID.status=0
+[DIN] count PC=0x4 din=1
+[IDDBG] cycle 7 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x4 oldID.PC=0x0 newID.PC=0x4 newID.status=0
+[DIN] count PC=0x8 din=2
+[IDDBG] cycle 8 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x8 oldID.PC=0x4 newID.PC=0x8 newID.status=0
+[DIN] count PC=0xc din=3
+[IDDBG] cycle 9 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0xc oldID.PC=0x8 newID.PC=0xc newID.status=0
+[DDBG] cycle 10 D-miss PC=0x8 addr=0x6c missLat=8
+[IDDBG] cycle 10 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x10 oldID.PC=0xc newID.PC=0x0 newID.status=1
+[DBG] cycle=15 PC=0x10 nextPC=0x10 freezePC=1 dStallActive=1 dMissThis=0 dStallLeft=3 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x10 newIF.PC=0x10
+[DBG] cycle=16 PC=0x10 nextPC=0x10 freezePC=1 dStallActive=1 dMissThis=0 dStallLeft=2 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x10 newIF.PC=0x10
+[DBG] cycle=17 PC=0x10 nextPC=0x10 freezePC=1 dStallActive=1 dMissThis=0 dStallLeft=1 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x10 newIF.PC=0x10
+[DBG] cycle=18 PC=0x10 nextPC=0x10 freezePC=1 dStallActive=1 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x10 newIF.PC=0x10
+[IDDBG] cycle 19 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x10 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[DBG] cycle=19 PC=0x10 nextPC=0x14 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x10 newIF.PC=0x10
+[DIN] count PC=0x10 din=4
+[IDDBG] cycle 20 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x10 oldID.PC=0x0 newID.PC=0x10 newID.status=0
+[DBG] cycle=20 PC=0x14 nextPC=0x18 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x10 newIF.PC=0x14
+[DIN] count PC=0x14 din=5
+[IDDBG] cycle 21 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x14 oldID.PC=0x10 newID.PC=0x14 newID.status=0
+[DBG] cycle=21 PC=0x18 nextPC=0x1c freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x14 newIF.PC=0x18
+[DDBG] cycle 22 D-miss PC=0x10 addr=0x3c missLat=8
+[DIN] count PC=0x18 din=6
+[IDDBG] cycle 22 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x18 oldID.PC=0x14 newID.PC=0x18 newID.status=0
+[DBG] cycle=22 PC=0x1c nextPC=0x1c freezePC=1 dStallActive=0 dMissThis=1 dStallLeft=8 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x18 newIF.PC=0x1c
+[DBG] cycle=23 PC=0x1c nextPC=0x1c freezePC=1 dStallActive=1 dMissThis=0 dStallLeft=7 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x1c newIF.PC=0x1c
+[DBG] cycle=24 PC=0x1c nextPC=0x1c freezePC=1 dStallActive=1 dMissThis=0 dStallLeft=6 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x1c newIF.PC=0x1c
+[DBG] cycle=25 PC=0x1c nextPC=0x1c freezePC=1 dStallActive=1 dMissThis=0 dStallLeft=5 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x1c newIF.PC=0x1c
+[DDBG] cycle 31 D-miss PC=0x14 addr=0x40 missLat=8
+[DIN] count PC=0x1c din=7
+[IDDBG] cycle 31 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DIN] count PC=0x1c din=8
+[IDDBG] cycle 40 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DIN] count PC=0x1c din=9
+[IDDBG] cycle 41 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x1c newID.PC=0x1c newID.status=0
+[IDDBG] cycle 42 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x1c newID.PC=0x0 newID.status=1
+[DDBG] cycle 43 D-hit  PC=0x1c addr=0x3c
+[IDDBG] cycle 43 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[IDDBG] cycle 44 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[IDDBG] cycle 45 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[IDDBG] cycle 46 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[DIN] count PC=0x20 din=10
+[IDDBG] cycle 47 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x0 newID.PC=0x20 newID.status=0
+[DIN] count PC=0x24 din=11
+[IDDBG] cycle 48 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x24 oldID.PC=0x20 newID.PC=0x24 newID.status=0
+[HZD] cycle 49 loadUse=1 brData=0 ID.PC=0x24 EX.PC=0x20 MEM.PC=0x0 loadBranchStallLeft=0
+[DDBG] cycle 49 D-hit  PC=0x20 addr=0x40
+[IDDBG] cycle 49 idWillAdvance=0 iStallForID=0 loadUseStall=1 branchDataStall=0 dStallActive=0 oldIF.PC=0x28 oldID.PC=0x24 newID.PC=0x24 newID.status=0
+[DIN] count PC=0x2c din=12
+[IDDBG] cycle 50 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x24 newID.PC=0x2c newID.status=0
+[DIN] count PC=0x2c din=13
+[IDDBG] cycle 51 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x2c newID.PC=0x2c newID.status=0
+[DDBG] cycle 52 D-hit  PC=0x2c addr=0x44
+[IDDBG] cycle 52 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x2c newID.PC=0x0 newID.status=1
+[IDDBG] cycle 53 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[IDDBG] cycle 54 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[IDDBG] cycle 55 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[IDDBG] cycle 56 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x0 newID.PC=0x0 newID.status=1
+[DIN] count PC=0x30 din=14
+[IDDBG] cycle 57 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x0 newID.PC=0x30 newID.status=0
+[DIN] count PC=0x34 din=15
+[IDDBG] cycle 58 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x30 newID.PC=0x34 newID.status=0
+[HZD] cycle 59 loadUse=0 brData=1 ID.PC=0x34 EX.PC=0x30 MEM.PC=0x0 loadBranchStallLeft=1
+[IDDBG] cycle 59 idWillAdvance=0 iStallForID=0 loadUseStall=0 branchDataStall=1 dStallActive=0 oldIF.PC=0x38 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[BR] cycle 60 ID.PC=0x34 nextPC=0x1c fall=0x38
+[IDDBG] cycle 60 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x34 newID.PC=0x0 newID.status=4
+[DIN] count PC=0x1c din=16
+[IDDBG] cycle 62 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DIN] count PC=0x20 din=17
+[IDDBG] cycle 63 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x1c newID.PC=0x20 newID.status=0
+[DDBG] cycle 64 D-hit  PC=0x1c addr=0x40
+[DIN] count PC=0x24 din=18
+[IDDBG] cycle 64 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x24 oldID.PC=0x20 newID.PC=0x24 newID.status=0
+[HZD] cycle 65 loadUse=1 brData=0 ID.PC=0x24 EX.PC=0x20 MEM.PC=0x1c loadBranchStallLeft=0
+[DDBG] cycle 65 D-hit  PC=0x20 addr=0x44
+[IDDBG] cycle 65 idWillAdvance=0 iStallForID=0 loadUseStall=1 branchDataStall=0 dStallActive=0 oldIF.PC=0x28 oldID.PC=0x24 newID.PC=0x24 newID.status=0
+[DIN] count PC=0x2c din=19
+[IDDBG] cycle 66 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x24 newID.PC=0x2c newID.status=0
+[DIN] count PC=0x2c din=20
+[IDDBG] cycle 67 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x2c newID.PC=0x2c newID.status=0
+[DDBG] cycle 68 D-hit  PC=0x2c addr=0x48
+[DIN] count PC=0x30 din=21
+[IDDBG] cycle 68 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x2c newID.PC=0x30 newID.status=0
+[DIN] count PC=0x34 din=22
+[IDDBG] cycle 69 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x30 newID.PC=0x34 newID.status=0
+[HZD] cycle 70 loadUse=0 brData=1 ID.PC=0x34 EX.PC=0x30 MEM.PC=0x2c loadBranchStallLeft=1
+[IDDBG] cycle 70 idWillAdvance=0 iStallForID=0 loadUseStall=0 branchDataStall=1 dStallActive=0 oldIF.PC=0x38 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[BR] cycle 71 ID.PC=0x34 nextPC=0x1c fall=0x38
+[IDDBG] cycle 71 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x34 newID.PC=0x0 newID.status=4
+[DIN] count PC=0x1c din=23
+[IDDBG] cycle 73 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DIN] count PC=0x20 din=24
+[IDDBG] cycle 74 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x1c newID.PC=0x20 newID.status=0
+[DDBG] cycle 75 D-hit  PC=0x1c addr=0x44
+[DIN] count PC=0x24 din=25
+[IDDBG] cycle 75 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x24 oldID.PC=0x20 newID.PC=0x24 newID.status=0
+[HZD] cycle 76 loadUse=1 brData=0 ID.PC=0x24 EX.PC=0x20 MEM.PC=0x1c loadBranchStallLeft=0
+[DDBG] cycle 76 D-hit  PC=0x20 addr=0x48
+[IDDBG] cycle 76 idWillAdvance=0 iStallForID=0 loadUseStall=1 branchDataStall=0 dStallActive=0 oldIF.PC=0x28 oldID.PC=0x24 newID.PC=0x24 newID.status=0
+[DIN] count PC=0x2c din=26
+[IDDBG] cycle 77 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x24 newID.PC=0x2c newID.status=0
+[DIN] count PC=0x2c din=27
+[IDDBG] cycle 78 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x2c newID.PC=0x2c newID.status=0
+[DDBG] cycle 79 D-hit  PC=0x2c addr=0x4c
+[DIN] count PC=0x30 din=28
+[IDDBG] cycle 79 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x2c newID.PC=0x30 newID.status=0
+[DIN] count PC=0x34 din=29
+[IDDBG] cycle 80 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x30 newID.PC=0x34 newID.status=0
+[HZD] cycle 81 loadUse=0 brData=1 ID.PC=0x34 EX.PC=0x30 MEM.PC=0x2c loadBranchStallLeft=1
+[IDDBG] cycle 81 idWillAdvance=0 iStallForID=0 loadUseStall=0 branchDataStall=1 dStallActive=0 oldIF.PC=0x38 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[BR] cycle 82 ID.PC=0x34 nextPC=0x1c fall=0x38
+[IDDBG] cycle 82 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x34 newID.PC=0x0 newID.status=4
+[DIN] count PC=0x1c din=30
+[IDDBG] cycle 84 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DIN] count PC=0x20 din=31
+[IDDBG] cycle 85 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x1c newID.PC=0x20 newID.status=0
+[DDBG] cycle 86 D-hit  PC=0x1c addr=0x48
+[DIN] count PC=0x24 din=32
+[IDDBG] cycle 86 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x24 oldID.PC=0x20 newID.PC=0x24 newID.status=0
+[HZD] cycle 87 loadUse=1 brData=0 ID.PC=0x24 EX.PC=0x20 MEM.PC=0x1c loadBranchStallLeft=0
+[DDBG] cycle 87 D-hit  PC=0x20 addr=0x4c
+[IDDBG] cycle 87 idWillAdvance=0 iStallForID=0 loadUseStall=1 branchDataStall=0 dStallActive=0 oldIF.PC=0x28 oldID.PC=0x24 newID.PC=0x24 newID.status=0
+[DIN] count PC=0x2c din=33
+[IDDBG] cycle 88 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x24 newID.PC=0x2c newID.status=0
+[DIN] count PC=0x2c din=34
+[IDDBG] cycle 89 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x2c newID.PC=0x2c newID.status=0
+[DDBG] cycle 90 D-miss PC=0x2c addr=0x50 missLat=8
+[DIN] count PC=0x30 din=35
+[IDDBG] cycle 90 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x2c newID.PC=0x30 newID.status=0
+[DIN] count PC=0x34 din=36
+[IDDBG] cycle 99 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x0 newID.PC=0x34 newID.status=0
+[DIN] count PC=0x34 din=37
+[IDDBG] cycle 100 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[HZD] cycle 101 loadUse=0 brData=1 ID.PC=0x34 EX.PC=0x34 MEM.PC=0x0 loadBranchStallLeft=1
+[IDDBG] cycle 101 idWillAdvance=0 iStallForID=0 loadUseStall=0 branchDataStall=1 dStallActive=0 oldIF.PC=0x38 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[BR] cycle 102 ID.PC=0x34 nextPC=0x1c fall=0x38
+[IDDBG] cycle 102 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x34 newID.PC=0x0 newID.status=4
+[DIN] count PC=0x1c din=38
+[IDDBG] cycle 104 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DIN] count PC=0x20 din=39
+[IDDBG] cycle 105 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x1c newID.PC=0x20 newID.status=0
+[DDBG] cycle 106 D-hit  PC=0x1c addr=0x4c
+[DIN] count PC=0x24 din=40
+[IDDBG] cycle 106 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x24 oldID.PC=0x20 newID.PC=0x24 newID.status=0
+[HZD] cycle 107 loadUse=1 brData=0 ID.PC=0x24 EX.PC=0x20 MEM.PC=0x1c loadBranchStallLeft=0
+[DDBG] cycle 107 D-hit  PC=0x20 addr=0x50
+[IDDBG] cycle 107 idWillAdvance=0 iStallForID=0 loadUseStall=1 branchDataStall=0 dStallActive=0 oldIF.PC=0x28 oldID.PC=0x24 newID.PC=0x24 newID.status=0
+[DIN] count PC=0x2c din=41
+[IDDBG] cycle 108 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x24 newID.PC=0x2c newID.status=0
+[DIN] count PC=0x2c din=42
+[IDDBG] cycle 109 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x2c newID.PC=0x2c newID.status=0
+[DDBG] cycle 110 D-hit  PC=0x2c addr=0x54
+[DIN] count PC=0x30 din=43
+[IDDBG] cycle 110 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x2c newID.PC=0x30 newID.status=0
+[DIN] count PC=0x34 din=44
+[IDDBG] cycle 111 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x30 newID.PC=0x34 newID.status=0
+[HZD] cycle 112 loadUse=0 brData=1 ID.PC=0x34 EX.PC=0x30 MEM.PC=0x2c loadBranchStallLeft=1
+[IDDBG] cycle 112 idWillAdvance=0 iStallForID=0 loadUseStall=0 branchDataStall=1 dStallActive=0 oldIF.PC=0x38 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[BR] cycle 113 ID.PC=0x34 nextPC=0x1c fall=0x38
+[IDDBG] cycle 113 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x34 newID.PC=0x0 newID.status=4
+[DIN] count PC=0x1c din=45
+[IDDBG] cycle 115 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DIN] count PC=0x20 din=46
+[IDDBG] cycle 116 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x1c newID.PC=0x20 newID.status=0
+[DDBG] cycle 117 D-hit  PC=0x1c addr=0x50
+[DIN] count PC=0x24 din=47
+[IDDBG] cycle 117 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x24 oldID.PC=0x20 newID.PC=0x24 newID.status=0
+[HZD] cycle 118 loadUse=1 brData=0 ID.PC=0x24 EX.PC=0x20 MEM.PC=0x1c loadBranchStallLeft=0
+[DDBG] cycle 118 D-hit  PC=0x20 addr=0x54
+[IDDBG] cycle 118 idWillAdvance=0 iStallForID=0 loadUseStall=1 branchDataStall=0 dStallActive=0 oldIF.PC=0x28 oldID.PC=0x24 newID.PC=0x24 newID.status=0
+[DIN] count PC=0x2c din=48
+[IDDBG] cycle 119 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x24 newID.PC=0x2c newID.status=0
+[DIN] count PC=0x2c din=49
+[IDDBG] cycle 120 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x2c newID.PC=0x2c newID.status=0
+[DDBG] cycle 121 D-hit  PC=0x2c addr=0x58
+[DIN] count PC=0x30 din=50
+[IDDBG] cycle 121 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x2c newID.PC=0x30 newID.status=0
+[DIN] count PC=0x34 din=51
+[IDDBG] cycle 122 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x30 newID.PC=0x34 newID.status=0
+[HZD] cycle 123 loadUse=0 brData=1 ID.PC=0x34 EX.PC=0x30 MEM.PC=0x2c loadBranchStallLeft=1
+[IDDBG] cycle 123 idWillAdvance=0 iStallForID=0 loadUseStall=0 branchDataStall=1 dStallActive=0 oldIF.PC=0x38 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[BR] cycle 124 ID.PC=0x34 nextPC=0x1c fall=0x38
+[IDDBG] cycle 124 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x34 newID.PC=0x0 newID.status=4
+[DIN] count PC=0x1c din=52
+[IDDBG] cycle 126 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DIN] count PC=0x20 din=53
+[IDDBG] cycle 127 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x1c newID.PC=0x20 newID.status=0
+[DDBG] cycle 128 D-hit  PC=0x1c addr=0x54
+[DIN] count PC=0x24 din=54
+[IDDBG] cycle 128 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x24 oldID.PC=0x20 newID.PC=0x24 newID.status=0
+[HZD] cycle 129 loadUse=1 brData=0 ID.PC=0x24 EX.PC=0x20 MEM.PC=0x1c loadBranchStallLeft=0
+[DDBG] cycle 129 D-hit  PC=0x20 addr=0x58
+[IDDBG] cycle 129 idWillAdvance=0 iStallForID=0 loadUseStall=1 branchDataStall=0 dStallActive=0 oldIF.PC=0x28 oldID.PC=0x24 newID.PC=0x24 newID.status=0
+[DIN] count PC=0x2c din=55
+[IDDBG] cycle 130 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x24 newID.PC=0x2c newID.status=0
+[DIN] count PC=0x2c din=56
+[IDDBG] cycle 131 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x2c newID.PC=0x2c newID.status=0
+[DDBG] cycle 132 D-hit  PC=0x2c addr=0x5c
+[DIN] count PC=0x30 din=57
+[IDDBG] cycle 132 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x2c newID.PC=0x30 newID.status=0
+[DIN] count PC=0x34 din=58
+[IDDBG] cycle 133 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x30 newID.PC=0x34 newID.status=0
+[HZD] cycle 134 loadUse=0 brData=1 ID.PC=0x34 EX.PC=0x30 MEM.PC=0x2c loadBranchStallLeft=1
+[IDDBG] cycle 134 idWillAdvance=0 iStallForID=0 loadUseStall=0 branchDataStall=1 dStallActive=0 oldIF.PC=0x38 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[BR] cycle 135 ID.PC=0x34 nextPC=0x1c fall=0x38
+[IDDBG] cycle 135 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x34 newID.PC=0x0 newID.status=4
+[DIN] count PC=0x1c din=59
+[IDDBG] cycle 137 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DIN] count PC=0x20 din=60
+[IDDBG] cycle 138 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x1c newID.PC=0x20 newID.status=0
+[DDBG] cycle 139 D-hit  PC=0x1c addr=0x58
+[DIN] count PC=0x24 din=61
+[IDDBG] cycle 139 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x24 oldID.PC=0x20 newID.PC=0x24 newID.status=0
+[HZD] cycle 140 loadUse=1 brData=0 ID.PC=0x24 EX.PC=0x20 MEM.PC=0x1c loadBranchStallLeft=0
+[DDBG] cycle 140 D-hit  PC=0x20 addr=0x5c
+[IDDBG] cycle 140 idWillAdvance=0 iStallForID=0 loadUseStall=1 branchDataStall=0 dStallActive=0 oldIF.PC=0x28 oldID.PC=0x24 newID.PC=0x24 newID.status=0
+[DBG] cycle=140 PC=0x2c nextPC=0x2c freezePC=1 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=1 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x28 newIF.PC=0x2c
+[DIN] count PC=0x2c din=62
+[IDDBG] cycle 141 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x24 newID.PC=0x2c newID.status=0
+[DBG] cycle=141 PC=0x2c nextPC=0x30 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x2c newIF.PC=0x2c
+[DIN] count PC=0x2c din=63
+[IDDBG] cycle 142 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x2c newID.PC=0x2c newID.status=0
+[DBG] cycle=142 PC=0x30 nextPC=0x34 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x2c newIF.PC=0x30
+[DDBG] cycle 143 D-hit  PC=0x2c addr=0x60
+[DIN] count PC=0x30 din=64
+[IDDBG] cycle 143 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x2c newID.PC=0x30 newID.status=0
+[DBG] cycle=143 PC=0x34 nextPC=0x38 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x30 newIF.PC=0x34
+[DIN] count PC=0x34 din=65
+[IDDBG] cycle 144 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x30 newID.PC=0x34 newID.status=0
+[DBG] cycle=144 PC=0x38 nextPC=0x3c freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x34 newIF.PC=0x38
+[HZD] cycle 145 loadUse=0 brData=1 ID.PC=0x34 EX.PC=0x30 MEM.PC=0x2c loadBranchStallLeft=1
+[IDDBG] cycle 145 idWillAdvance=0 iStallForID=0 loadUseStall=0 branchDataStall=1 dStallActive=0 oldIF.PC=0x38 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[DBG] cycle=145 PC=0x3c nextPC=0x3c freezePC=1 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=1 loadBranchStallLeft=1 wbMemException=0 idIllegalException=0 oldIF.PC=0x38 newIF.PC=0x3c
+[BR] cycle 146 ID.PC=0x34 nextPC=0x1c fall=0x38
+[IDDBG] cycle 146 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x34 newID.PC=0x0 newID.status=4
+[DBG] cycle=146 PC=0x3c nextPC=0x1c freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x3c newIF.PC=0x3c
+[DBG] cycle=147 PC=0x1c nextPC=0x20 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x3c newIF.PC=0x1c
+[DIN] count PC=0x1c din=66
+[IDDBG] cycle 148 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DBG] cycle=148 PC=0x20 nextPC=0x24 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x1c newIF.PC=0x20
+[DIN] count PC=0x20 din=67
+[IDDBG] cycle 149 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x1c newID.PC=0x20 newID.status=0
+[DBG] cycle=149 PC=0x24 nextPC=0x28 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x20 newIF.PC=0x24
+[DDBG] cycle 150 D-hit  PC=0x1c addr=0x5c
+[DIN] count PC=0x24 din=68
+[IDDBG] cycle 150 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x24 oldID.PC=0x20 newID.PC=0x24 newID.status=0
+[DBG] cycle=150 PC=0x28 nextPC=0x2c freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x24 newIF.PC=0x28
+[HZD] cycle 151 loadUse=1 brData=0 ID.PC=0x24 EX.PC=0x20 MEM.PC=0x1c loadBranchStallLeft=0
+[DDBG] cycle 151 D-hit  PC=0x20 addr=0x60
+[IDDBG] cycle 151 idWillAdvance=0 iStallForID=0 loadUseStall=1 branchDataStall=0 dStallActive=0 oldIF.PC=0x28 oldID.PC=0x24 newID.PC=0x24 newID.status=0
+[DBG] cycle=151 PC=0x2c nextPC=0x2c freezePC=1 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=1 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x28 newIF.PC=0x2c
+[DIN] count PC=0x2c din=69
+[IDDBG] cycle 152 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x24 newID.PC=0x2c newID.status=0
+[DBG] cycle=152 PC=0x2c nextPC=0x30 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x2c newIF.PC=0x2c
+[DIN] count PC=0x2c din=70
+[IDDBG] cycle 153 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x2c newID.PC=0x2c newID.status=0
+[DBG] cycle=153 PC=0x30 nextPC=0x34 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x2c newIF.PC=0x30
+[DDBG] cycle 154 D-hit  PC=0x2c addr=0x64
+[DIN] count PC=0x30 din=71
+[IDDBG] cycle 154 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x2c newID.PC=0x30 newID.status=0
+[DBG] cycle=154 PC=0x34 nextPC=0x38 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x30 newIF.PC=0x34
+[DIN] count PC=0x34 din=72
+[IDDBG] cycle 155 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x30 newID.PC=0x34 newID.status=0
+[DBG] cycle=155 PC=0x38 nextPC=0x3c freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x34 newIF.PC=0x38
+[HZD] cycle 156 loadUse=0 brData=1 ID.PC=0x34 EX.PC=0x30 MEM.PC=0x2c loadBranchStallLeft=1
+[IDDBG] cycle 156 idWillAdvance=0 iStallForID=0 loadUseStall=0 branchDataStall=1 dStallActive=0 oldIF.PC=0x38 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[DBG] cycle=156 PC=0x3c nextPC=0x3c freezePC=1 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=1 loadBranchStallLeft=1 wbMemException=0 idIllegalException=0 oldIF.PC=0x38 newIF.PC=0x3c
+[BR] cycle 157 ID.PC=0x34 nextPC=0x1c fall=0x38
+[IDDBG] cycle 157 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x34 newID.PC=0x0 newID.status=4
+[DBG] cycle=157 PC=0x3c nextPC=0x1c freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x3c newIF.PC=0x3c
+[DBG] cycle=158 PC=0x1c nextPC=0x20 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x3c newIF.PC=0x1c
+[DIN] count PC=0x1c din=73
+[IDDBG] cycle 159 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x1c oldID.PC=0x0 newID.PC=0x1c newID.status=0
+[DBG] cycle=159 PC=0x20 nextPC=0x24 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x1c newIF.PC=0x20
+[DIN] count PC=0x20 din=74
+[IDDBG] cycle 160 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x20 oldID.PC=0x1c newID.PC=0x20 newID.status=0
+[DBG] cycle=160 PC=0x24 nextPC=0x28 freezePC=0 dStallActive=0 dMissThis=0 dStallLeft=0 iStallLeft=0 iMissThis=0 loadUseStall=0 branchDataStall=0 loadBranchStallLeft=0 wbMemException=0 idIllegalException=0 oldIF.PC=0x20 newIF.PC=0x24
+[DDBG] cycle 161 D-hit  PC=0x1c addr=0x60
+[DIN] count PC=0x24 din=75
+[IDDBG] cycle 161 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x24 oldID.PC=0x20 newID.PC=0x24 newID.status=0
+[HZD] cycle 162 loadUse=1 brData=0 ID.PC=0x24 EX.PC=0x20 MEM.PC=0x1c loadBranchStallLeft=0
+[DDBG] cycle 162 D-hit  PC=0x20 addr=0x64
+[IDDBG] cycle 162 idWillAdvance=0 iStallForID=0 loadUseStall=1 branchDataStall=0 dStallActive=0 oldIF.PC=0x28 oldID.PC=0x24 newID.PC=0x24 newID.status=0
+[DIN] count PC=0x2c din=76
+[IDDBG] cycle 163 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x24 newID.PC=0x2c newID.status=0
+[DIN] count PC=0x2c din=77
+[IDDBG] cycle 164 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x2c oldID.PC=0x2c newID.PC=0x2c newID.status=0
+[DDBG] cycle 165 D-hit  PC=0x2c addr=0x68
+[DIN] count PC=0x30 din=78
+[IDDBG] cycle 165 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x30 oldID.PC=0x2c newID.PC=0x30 newID.status=0
+[DIN] count PC=0x34 din=79
+[IDDBG] cycle 166 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x34 oldID.PC=0x30 newID.PC=0x34 newID.status=0
+[HZD] cycle 167 loadUse=0 brData=1 ID.PC=0x34 EX.PC=0x30 MEM.PC=0x2c loadBranchStallLeft=1
+[IDDBG] cycle 167 idWillAdvance=0 iStallForID=0 loadUseStall=0 branchDataStall=1 dStallActive=0 oldIF.PC=0x38 oldID.PC=0x34 newID.PC=0x34 newID.status=0
+[DIN] count PC=0x3c din=80
+[IDDBG] cycle 168 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x34 newID.PC=0x3c newID.status=0
+[cycle 169] ID illegal (new decode) PC 0x3c
+[DIN] disable cycle=169 reason=ID-illegal-new PC=0x3c
+[IDDBG] cycle 169 idWillAdvance=1 iStallForID=0 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x3c oldID.PC=0x3c newID.PC=0x3c newID.status=0
+[IDDBG] cycle 171 idWillAdvance=1 iStallForID=1 loadUseStall=0 branchDataStall=0 dStallActive=0 oldIF.PC=0x8000 oldID.PC=0x0 newID.PC=0x0 newID.status=1

@@ -67,6 +67,7 @@ class Simulator {
 
         // known by WB
         uint64_t instructionID = 0;  // din of the instruction
+        bool     dinCounted = false; // whether this instruction was counted @ decode
 
         // Used for stage status tracking in cycle
         StageStatus status = NORMAL;
