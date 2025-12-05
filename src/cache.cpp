@@ -94,6 +94,50 @@ bool Cache::access(uint64_t address, CacheOperation readWrite) {
     pointer->valid = true;
     pointer->tag = tag;
     pointer->lruStamp = globalLRUCounter;
+
+    // --------------------------------------------------------
+    // Prefetch Next Block
+    // --------------------------------------------------------
+    uint64_t nextAddr = address + config.blockSize;
+    uint64_t nextIndexMask = (1ULL << indexBits) - 1;
+    uint64_t nextIndex = (nextAddr >> offsetBits) & nextIndexMask;
+    uint64_t nextTag = nextAddr >> (offsetBits + indexBits);
+
+    std::vector<Line> &nextSet = sets[nextIndex];
+    bool nextBlockFound = false;
+
+    // Check if already in cache
+    for (Line &line : nextSet) {
+        if (line.valid && line.tag == nextTag) {
+            nextBlockFound = true;
+            break;
+        }
+    }
+
+    if (!nextBlockFound) {
+        // Find victim in next set
+        Line *nextPointer = nullptr;
+        for (Line &line : nextSet) {
+            if (!line.valid) {
+                nextPointer = &line;
+                break;
+            }
+        }
+        if (!nextPointer) {
+             nextPointer = &nextSet[0];
+             for (Line &line : nextSet) {
+                 if (line.lruStamp < nextPointer->lruStamp) {
+                     nextPointer = &line;
+                 }
+             }
+        }
+
+        // Bring in next block
+        nextPointer->valid = true;
+        nextPointer->tag = nextTag;
+        nextPointer->lruStamp = globalLRUCounter; 
+    }
+
     return false;
 }
 

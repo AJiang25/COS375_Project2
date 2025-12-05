@@ -10,6 +10,7 @@ using namespace std;
 Simulator::Simulator() {
     // Initialize member variables
     memory = nullptr;
+    instrMemory = nullptr;
     regData.reg = {};
     din = 0;
     countDin = true;
@@ -454,7 +455,12 @@ Simulator::Instruction Simulator::simCommit(Instruction inst, REGS &regData) {
 // ----------------------
 Simulator::Instruction Simulator::simIF(uint64_t PC) {
     // fetch and set default nextPC = PC + 4
-    Instruction inst = simFetch(PC, memory);
+    // Use instrMemory if available (Harvard), otherwise shared memory
+    MemoryStore* fetchMem = instrMemory ? instrMemory : memory;
+    if (PC == 0x3c) {
+         std::cerr << "[DBG-SIMIF] PC=0x3c instrMemory=" << instrMemory << " fetchMem=" << fetchMem << std::endl;
+    }
+    Instruction inst = simFetch(PC, fetchMem);
     inst.nextPC = PC + 4;
     inst.status = NORMAL;
     return inst;

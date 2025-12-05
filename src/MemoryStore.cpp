@@ -93,6 +93,9 @@ int MemoryStore::getMemValue(uint64_t address, uint64_t &value, MemEntrySize siz
 }
 
 int MemoryStore::setMemValue(uint64_t address, uint64_t value, MemEntrySize size) {
+    if (address == 0x3c) {
+        std::cerr << "[DBG-MEM] Write to 0x3c val=" << value << " this=" << this << std::endl;
+    }
     return getOrSetValue(false, address, value, size);
 }
 

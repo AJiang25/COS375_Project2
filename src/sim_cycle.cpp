@@ -81,8 +81,13 @@ int main(int argc, char** argv) {
 
     cout << "[Simulator] Loading memory from " << LOG_VAR(inputFile) << endl;
     auto baseFilename = getBaseFilename(argv[1]) + "_cycle";
-    initSimulator(iCacheConfig, dCacheConfig, new MemoryStore(0, MEMORY_SIZE, argv[1]),
-                  baseFilename);
+    
+    // Create separate memory stores for data and instructions (Harvard architecture)
+    // This prevents self-modifying code issues where data writes corrupt instructions
+    MemoryStore *dataMem = new MemoryStore(0, MEMORY_SIZE, argv[1]);
+    MemoryStore *instrMem = new MemoryStore(0, MEMORY_SIZE, argv[1]);
+    
+    initSimulator(iCacheConfig, dCacheConfig, dataMem, instrMem, baseFilename);
 
     cout << "[Simulator] Start simulator" << endl;
     auto status = runTillHalt();
