@@ -13,6 +13,7 @@ static Cache* iCache = nullptr;
 static Cache* dCache = nullptr;
 static std::string output;
 static uint64_t cycleCount = 0;
+static uint64_t dynRetired = 0;
 
 // PC alw holds the address to be used by IF on the *next* cycle
 static uint64_t PC = 0;
@@ -80,6 +81,7 @@ Status initSimulator(CacheConfig& iCacheConfig, CacheConfig& dCacheConfig, Memor
 // return HALT if the simulator halts on 0xfeedfeed
 
 Status runCycles(uint64_t cycles) {
+    std::cerr << "[cycle " << cycleCount << "] " << std::endl;
     uint64_t count = 0;
     Status status = SUCCESS;
 
@@ -97,6 +99,12 @@ Status runCycles(uint64_t cycles) {
         Simulator::Instruction oldEX = pipelineInfo.exInst;
         Simulator::Instruction oldMEM = pipelineInfo.memInst;
         Simulator::Instruction oldWB = pipelineInfo.wbInst;
+
+        std::cerr << "old IF's initial PC";
+        printIFPC(oldIF.PC, oldIF.status, std::cerr);
+        std::cerr << "\n" << "oldIF's Instr";
+        printInstr(oldIF.instruction, oldIF.status, std::cerr);
+        std::cerr << "\n";
 
         // ===================================================
         // New Pipeline Registers (initialized as idle NOPs)
@@ -128,7 +136,6 @@ Status runCycles(uint64_t cycles) {
         // Cache / stall bookkeeping
         bool iMissThisCycle      = false;
         bool dMissThisCycle      = false;
-        bool dStallActive        = (dStallLeft > 0);  // D-cache stall currently active
 
         // default next PC is fall‑through
         uint64_t nextPC = PC + 4;
@@ -141,10 +148,14 @@ Status runCycles(uint64_t cycles) {
             squashNextIF = false;
         }
 
+        std::cerr << "dStallLeft before decrementing counters: " << dStallLeft << std::endl; 
+        std::cerr << "stalledForHazard at beginning: " << stalledForHazard << std::endl;
         // decrement counters for this cycle (all can count down together)
         if (iStallLeft > 0) iStallLeft--;
         if (dStallLeft > 0) dStallLeft--;
         if (loadBranchStallLeft > 0) loadBranchStallLeft--;
+
+        bool dStallActive        = (dStallLeft > 0);  // D-cache stall currently active
 
         // --------------------------------------------------------
         // WB stage: MEM -> WB (WB alw continues)
@@ -157,6 +168,11 @@ Status runCycles(uint64_t cycles) {
             if (newWB.isNop) {
                 newWB.status = oldMEM.status;
             }
+
+            if (!newWB.isNop && newWB.isLegal && !newWB.memException && newWB.dinCounted) {
+                dynRetired++;
+            }
+
             if (!newWB.isLegal || newWB.memException) {
                 std::cerr << "[cycle " << cycleCount << "] WB exception @ PC 0x" << std::hex
                           << oldMEM.PC << std::dec
@@ -232,6 +248,17 @@ Status runCycles(uint64_t cycles) {
             branchDataStall = true;
         }
 
+        if (loadUseStall || branchDataStall) {
+            std::cerr << "[HZD] cycle " << cycleCount
+                      << " loadUse=" << loadUseStall
+                      << " brData=" << branchDataStall
+                      << " ID.PC=0x" << std::hex << oldID.PC
+                      << " EX.PC=0x" << oldEX.PC
+                      << " MEM.PC=0x" << oldMEM.PC
+                      << " loadBranchStallLeft=" << std::dec << loadBranchStallLeft
+                      << std::endl;
+        }
+
         // --------------------------------------------------------
         // MEM stage: EX -> MEM + D‑cache access
         // --------------------------------------------------------
@@ -255,6 +282,16 @@ Status runCycles(uint64_t cycles) {
                     // miss cycle so total visible penalty matches ref timing
                     dStallLeft += dCache->config.missLatency;
                     dMissThisCycle = true;
+                    std::cerr << "[DDBG] cycle " << cycleCount
+                              << " D-miss PC=0x" << std::hex << oldEX.PC
+                              << " addr=0x" << memInput.memAddress
+                              << " missLat=" << std::dec << dCache->config.missLatency
+                              << std::endl;
+                } else {
+                    std::cerr << "[DDBG] cycle " << cycleCount
+                              << " D-hit  PC=0x" << std::hex << oldEX.PC
+                              << " addr=0x" << memInput.memAddress
+                              << std::dec << std::endl;
                 }
             }
 
@@ -285,14 +322,30 @@ Status runCycles(uint64_t cycles) {
         // IF stage (prefetch for this cycle) to know I-miss before ID gating
         // --------------------------------------------------------
         bool iStallActiveNow = (iStallLeft > 0);
-        bool wasIStalledBefore = wasIStalled;  // capture before IF logic clears it
+        bool wasIStalledBefore;  // capture before IF logic clears it
         Simulator::Instruction fetchedIF = oldIF;
-        
-        // If pipeline frozen (hazards/D-stall), keep oldIF
-        if (dStallNow || loadUseStall || branchDataStall || loadBranchStallLeft > 0 || idIllegalException || wbMemException) {
 
+        if (dStallActive) {
+            wasIStalled = false;
+        }
+
+        wasIStalledBefore = wasIStalled;
+
+        
+        //==========================================
+        // POSSIBLE POINT OF ISSUE
+        //==========================================
+        // If pipeline frozen (hazards/D-stall), keep oldIF
+        bool pipeFrozenNow = dStallActive ||
+                     loadUseStall ||
+                     branchDataStall ||
+                     (loadBranchStallLeft > 0) ||
+                     idIllegalException ||
+                     wbMemException;
+        if (pipeFrozenNow) {
             fetchedIF = oldIF;
-            fetchedIF.PC = PC;
+            //fetchedIF.PC = PC;
+
             
             // Pipeline frozen: keep showing same instruction/PC in IF
             if (branchDataStall || loadBranchStallLeft > 0) {
@@ -300,25 +353,38 @@ Status runCycles(uint64_t cycles) {
             } else {
                 fetchedIF.status = NORMAL;
             }
-            nextPC = PC;        // don't adv PC when stalled
-            stalledForHazard = true; // flag we hold oldIF due to hazard
+            // nextPC = PC;                // don't adv PC when stalled
+            // if (loadUseStall || branchDataStall || loadBranchStallLeft > 0) {
+            //     stalledForHazard = true;     // true data hazard
+            // } else {
+            //     stalledForHazard = false;    // D-stall or exception: no hazard-resume path
+            // }
+            stalledForHazard = true;    // flag we hold oldIF due to hazard
+        } 
 
         // ---- I-cache miss window in progress ----
-        } else if (iStallActiveNow) {
+        else if (iStallActiveNow)  {
+            // keep showing same PC in IF; ID will receive a bubble
+            std::cerr << "I Cache Miss, oldIF PC=0x" << std::hex << oldIF.PC;
             fetchedIF = oldIF;
-            fetchedIF.PC = PC;
             fetchedIF.status = BUBBLE;
             wasIStalled = true;
             stalledForHazard = false;
 
         // ---- No stall: either resume after stall or do a normal fetch ----
         } else {
-            if (wasIStalled || stalledForHazard) {
-                // resume after stall OR hazard: fetch WITHOUT re‑accessing cache
+            if (stalledForHazard) {
+                // Resume from D-stall or hazard: oldIF has valid instruction
+                // Fetch the NEXT instruction
+                // fetchedIF = simulator->simIF(PC + 4);
+                fetchedIF = oldIF;
+                stalledForHazard = false;
+            } else if (wasIStalled) {
+                // Resume from I-cache stall: just do normal fetch from current PC
                 fetchedIF = simulator->simIF(PC);
                 wasIStalled = false;
-                stalledForHazard = false;
-            } else {
+            }
+            else {
                 // normal operation: probe I‑cache for this PC
                 bool iHit = iCache->access(PC, CACHE_READ);
                 if (!iHit) {
@@ -327,8 +393,10 @@ Status runCycles(uint64_t cycles) {
                     iMissThisCycle = true;
 
                     // keep showing same PC in IF; ID will receive a bubble
-                    fetchedIF = oldIF;
-                    fetchedIF.PC = PC;
+                    std::cerr << "Cache Miss, oldIF PC=0x" << std::hex << oldIF.PC;
+                    fetchedIF = simulator->simIF(PC);
+                    
+                    //fetchedIF = oldIF;
                     fetchedIF.status = (oldIF.status == IDLE) ? IDLE : BUBBLE;
                     wasIStalled = true;
                 } else {
@@ -402,6 +470,7 @@ Status runCycles(uint64_t cycles) {
             newEX = nop(BUBBLE);
         }
 
+        std::cerr << "This is Global PC=0x" << std::hex << PC << std::dec << "\n";
         // --------------------------------------------------------
         // ID stage: IF -> ID (unless stalled)
         // --------------------------------------------------------
@@ -463,21 +532,37 @@ Status runCycles(uint64_t cycles) {
                           << idEval.PC << std::dec << "\n";
                 idIllegalException = true;
                 if (simulator != nullptr) {
+                    std::cerr << "[DIN] disable cycle=" << cycleCount
+                              << " reason=ID-illegal-res PC=0x" << std::hex << idEval.PC
+                              << std::dec << std::endl;
                     simulator->disableDinCounting();
                 }
                 nextPC = idEval.nextPC;  // EXCEPTION_HANDLER
             } else if (idWillAdvance && isControlFlow && !wbMemException) {
+                std::cerr << "[Exception Handler] cycle " << cycleCount << "idWillAdvance " 
+                    << idWillAdvance << "isControlFlow " << isControlFlow << "!wbMemException" 
+                    << !wbMemException << std::dec << "\n";
+
                 // Recompute control-flow decision for the instruction in ID after forwarding
                 Simulator::Instruction resolved = simulator->simNextPCResolution(idEval);
                 uint64_t fallThrough = idEval.PC + 4;
                 branchTaken = (resolved.nextPC != fallThrough);
+                if (branchTaken) {
+                    std::cerr << "[BR] cycle " << cycleCount
+                              << " ID.PC=0x" << std::hex << idEval.PC
+                              << " nextPC=0x" << resolved.nextPC
+                              << " fall=0x" << fallThrough
+                              << std::dec << std::endl;
+                }
                 nextPC = resolved.nextPC;
             }
 
              // -------- Decide what enters ID from IF this cycle --------
             if (idWillAdvance) {
+                std::cerr << "  [ID advancing] branchTaken=" << branchTaken << " iStallForID=" << iStallForID << "\n";
                 if (branchTaken && !idIllegalException && !wbMemException) {
                     // wrong‑path instruction in IF; squash before decode so din is not counted
+                    std::cerr << "  -> PATH: branch squash\n";
                     newID = nop(SQUASHED);
                     
                     // flush I-Cache stall state
@@ -486,18 +571,29 @@ Status runCycles(uint64_t cycles) {
                     stalledForHazard = false; // Hazard state doesn't apply if we branch
                     
                 } else if (iStallForID) {
+                    std::cerr << "  -> PATH: iStallForID bubble\n";
                     // I-cache stall: insert bubble in ID, don't decode
                     // on first miss cycle, keep ID as IDLE NOP so initial
                     // pipeline state (cycle 0) matches ref; on subsequent stall
                     // cycles, insert BUBBLEs
                     if (iMissThisCycle && oldIF.status == IDLE) {
                         newID = nop(IDLE);
+                    } else if (iMissThisCycle) {
+                        std::cerr << "  -> PATH: iStallForID + D-miss, holding oldID\n";
+                        newID = oldID; 
                     } else {
                         newID = nop(BUBBLE);
                     }
-                } else {
-                    // Normal decode of oldIF
+                } else  {
+                    std::cerr << "  -> PATH: normal decode of oldIF.PC=0x" << std::hex << oldIF.PC << " stalledforHazard: " << stalledForHazard << std::dec << "\n";
+                    // Normal decode of oldIF for newID
                     idDecodedNext = simulator->simID(oldIF);
+
+                    std::cerr << "\n" << "idDecodedNext's PC";
+                    printIFPC(idDecodedNext.PC, idDecodedNext.status, std::cerr);
+                    std::cerr << "\n" << "idDecodedNext's Instr";
+                    printInstr(idDecodedNext.instruction, idDecodedNext.status, std::cerr);
+                    std::cerr << "\n";
 
                     // if *incoming* instruction (from IF) is illegal, raise ID-stage
                     // illegal exception immediately so redirect to handler happens
@@ -506,20 +602,28 @@ Status runCycles(uint64_t cycles) {
                         std::cerr << "[cycle " << cycleCount
                                   << "] ID illegal (new decode) PC 0x" << std::hex
                                   << oldIF.PC << std::dec << "\n";
+                        if (idDecodedNext.dinCounted) {
+                            dynRetired++;
+                        }
                         idIllegalException = true;
                         if (simulator != nullptr) {
+                            std::cerr << "[DIN] disable cycle=" << cycleCount
+                                      << " reason=ID-illegal-new PC=0x" << std::hex << oldIF.PC
+                                      << std::dec << std::endl;
                             simulator->disableDinCounting();
                         }
                         nextPC = idDecodedNext.nextPC;  // EXCEPTION_HANDLER
                     }
 
                     newID = idDecodedNext;
+
                     // preserve status from prior stage for NOPs (idle/bubble propagation)
                     if (newID.isNop) {
                         newID.status = oldIF.status;
                     }
                 }
             } else {
+                std::cerr << "  [ID NOT advancing] holding oldID\n";
                 newID = oldID;
             }
         }
@@ -533,8 +637,10 @@ Status runCycles(uint64_t cycles) {
         // --------------------------------------------------------
         // IF stage: fetch next instruction (unless stalled or exception)
         // --------------------------------------------------------
+        
         newIF = fetchedIF;
-        if (branchTaken && !idIllegalException && !wbMemException && !dStallNow && !iStallActiveNow && !iMissThisCycle && !loadUseStall && !branchDataStall && loadBranchStallLeft == 0) {
+        // newIF.PC = nextPC;
+        if (branchTaken && !idIllegalException && !wbMemException && !dStallActive && !iStallActiveNow && !iMissThisCycle && !loadUseStall && !branchDataStall && loadBranchStallLeft == 0) {
             newIF.status = SPECULATIVE;
         }
 
@@ -556,7 +662,7 @@ Status runCycles(uint64_t cycles) {
             // squash younger instructions (ID/EX/MEM) immediately;
             // IF shows handler PC with NORMAL status (no annotation)
             newIF = simulator->simIF(nextPC);  // fetch from handler
-            newIF.PC = nextPC;
+            // newIF.PC = nextPC;
             newIF.status = NORMAL;
 
             newID = nop(SQUASHED);
@@ -595,12 +701,9 @@ Status runCycles(uint64_t cycles) {
         //  - Otherwise: use nextPC from branch / exception logic
         // --------------------------------------------------------
         bool freezePC =
-                loadUseStall              ||
-                branchDataStall           ||
-                (loadBranchStallLeft > 0) ||
-                dStallNow                 ||
-                (iStallLeft > 0)          ||
-                iMissThisCycle;
+                pipeFrozenNow || 
+                (iStallLeft > 0);
+                // || iMissThisCycle;
 
         // WB exception must take priority and force PC to handler
         if (wbMemException) {
@@ -608,8 +711,30 @@ Status runCycles(uint64_t cycles) {
         } else if (idIllegalException) {
             PC = nextPC;  // jump to handler even if stalls were present
         } else if (!freezePC) {
+            std::cerr << "Global PC before freeze=0x" << std::hex << PC << std::dec << "\n";
             PC = nextPC;
+            std::cerr << "Global PC post freeze=0x" << std::hex << PC << std::dec << "\n";
         }
+
+        std::cerr << "Global PC=0x" << std::hex << PC << std::dec << "\n";
+        std::cerr << "oldIF's PC=0x" << std::hex << oldIF.PC << std::dec << "\n";
+        std::cerr << "newIF's PC=0x" << std::hex << newIF.PC << std::dec << "\n";
+        std::cerr << "oldID's PC=0x" << std::hex << oldID.PC << std::dec << "\n";
+        std::cerr << "newID's PC=0x" << std::hex << newID.PC << std::dec << "\n";
+        std::cerr << "\n" << "oldIF's PC";
+        printIFPC(oldIF.PC, oldIF.status, std::cerr);
+        std::cerr << "\n" << "newIF's PC";
+        printIFPC(newIF.PC, newIF.status, std::cerr);
+        std::cerr << "\n" << "oldIF's Instr";
+        printInstr(oldIF.instruction, oldIF.status, std::cerr);
+        std::cerr << "\n" << "newIF's Instr";
+        printInstr(newIF.instruction, newIF.status, std::cerr);
+        std::cerr << "\n" << "oldID's Instr";
+        printInstr(oldID.instruction, oldID.status, std::cerr);
+        std::cerr << "\n" << "newID's Instr";
+        printInstr(newID.instruction, newID.status, std::cerr);
+        std::cerr << "\n";
+        std::cerr << "\n";
 
         // --------------------------------------------------------
         // Commit new pipeline registers

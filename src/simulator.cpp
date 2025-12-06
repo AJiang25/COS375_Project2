@@ -454,7 +454,9 @@ Simulator::Instruction Simulator::simCommit(Instruction inst, REGS &regData) {
 // ----------------------
 Simulator::Instruction Simulator::simIF(uint64_t PC) {
     // fetch and set default nextPC = PC + 4
+
     Instruction inst = simFetch(PC, memory);
+    inst.PC = PC;
     inst.nextPC = PC + 4;
     inst.status = NORMAL;
     return inst;
@@ -473,7 +475,10 @@ Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
 
     // FIX: Only count valid, legal instructions before an exception disables counting
     if (!inst.isNop && countDin) { 
+        std::cerr << "[DIN] count PC=0x" << std::hex << inst.PC
+                  << " din=" << std::dec << din << std::endl;
         inst.instructionID = din++;
+        inst.dinCounted = true;
     }
 
     // Handle Exceptions?
@@ -484,6 +489,10 @@ Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
         // instruction in ID should still display as ILLEGAL and not squashed
         inst.status = NORMAL;
         return inst;
+    }
+
+    if (inst.isHalt) {
+        countDin = false;
     }
 
     // collect register operands (for ALU, branches, jalr, loads/stores)
