@@ -17,7 +17,6 @@ class Simulator {
     union REGS regData;
     // memory component
     MemoryStore* memory;
-    MemoryStore* instrMemory; // Separate instruction memory for Harvard behavior
 
     // Arch states and statistics
     uint64_t din;          // Dynamic instruction number
@@ -79,7 +78,6 @@ class Simulator {
     auto getMemory() { return memory; }
 
     void setMemory(MemoryStore* mem) { memory = mem; }
-    void setInstrMemory(MemoryStore* mem) { instrMemory = mem; }
     void disableDinCounting() { countDin = false; }
     bool isDinCountingEnabled() const { return countDin; }
 

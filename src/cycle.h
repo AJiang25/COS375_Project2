@@ -6,8 +6,8 @@
 #include "simulator.h"
 
 // init the simulator and all info
-Status initSimulator(CacheConfig &iCacheConfig, CacheConfig &dCacheConfig, MemoryStore *mem,
-                     MemoryStore *instrMem, const std::string &output_name);
+Status initSimulator(CacheConfig& icConfig, CacheConfig& dcConfig, MemoryStore* memory,
+                     const std::string& output_name);
 
 // run the simulator for a certain number of cycles
 Status runCycles(uint64_t cycles);

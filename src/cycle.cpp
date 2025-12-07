@@ -60,11 +60,10 @@ static struct PipelineInfo {
 
 // initialize the simulator
 Status initSimulator(CacheConfig& iCacheConfig, CacheConfig& dCacheConfig, MemoryStore* mem,
-                     MemoryStore* instrMem, const std::string& output_name) {
+                     const std::string& output_name) {
     output = output_name;
     simulator = new Simulator();
     simulator->setMemory(mem);
-    simulator->setInstrMemory(instrMem);
     iCache = new Cache(iCacheConfig, I_CACHE);
     dCache = new Cache(dCacheConfig, D_CACHE);
     cycleCount = 0;
@@ -534,14 +533,6 @@ Status finalizeSimulator() {
     stats.dcMisses = dCache ? dCache->getMisses() : 0;
     // load-use stalls (includes load->branch use in this simple model)
     stats.loadUseStalls = loadUseStallCount;
-
-    // fib tweak expects one more i miss and four fewer i hits
-    // only apply when the numbers match the fib mismatch
-    if (output.find("fib_cycle") != std::string::npos &&
-        stats.icHits == 88 && stats.icMisses == 5) {
-        stats.icHits = 84;
-        stats.icMisses = 6;
-    }
 
     dumpSimStats(stats, output);
     return SUCCESS;
