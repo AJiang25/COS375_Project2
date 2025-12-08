@@ -42,12 +42,12 @@ static bool     stalledForHazard = false;
 
 /** Create a micro‑architectural NOP with a given stage status */
 Simulator::Instruction nop(StageStatus status) {
-    Simulator::Instruction n;
-    n.instruction = 0x00000013;  // addi x0,x0,0
-    n.isLegal = true;
-    n.isNop = true;
-    n.status = status;
-    return n;
+    Simulator::Instruction nop;
+    nop.instruction = 0x00000013;  // addi x0,x0,0
+    nop.isLegal = true;
+    nop.isNop = true;
+    nop.status = status;
+    return nop;
 }
 
 static struct PipelineInfo {
@@ -57,6 +57,7 @@ static struct PipelineInfo {
     Simulator::Instruction memInst = nop(IDLE);
     Simulator::Instruction wbInst = nop(IDLE);
 } pipelineInfo;
+
 
 // initialize the simulator
 Status initSimulator(CacheConfig& iCacheConfig, CacheConfig& dCacheConfig, MemoryStore* mem,
@@ -92,9 +93,11 @@ Status initSimulator(CacheConfig& iCacheConfig, CacheConfig& dCacheConfig, Memor
 Status runCycles(uint64_t cycles) {
     uint64_t count = 0;
     Status status = SUCCESS;
+
     PipeState pipeState{};
 
     while (cycles == 0 || count < cycles) {
+
         // apply any pending squash of IF from prior taken branch (for visibility)
         pipeState.cycle = cycleCount;
 
@@ -112,9 +115,9 @@ Status runCycles(uint64_t cycles) {
         Simulator::Instruction newMEM = nop(IDLE);
         Simulator::Instruction newWB = nop(IDLE);
 
-        bool branchTaken = false;
-        bool idIllegalException = false;
-        bool wbMemException = false;
+        bool branchTaken         = false;
+        bool idIllegalException  = false;
+        bool wbMemException      = false;
 
         bool applyDeferredSquash = squashNextIF;
         squashNextIF = false;
@@ -131,13 +134,13 @@ Status runCycles(uint64_t cycles) {
         // I-cache: check AFTER decrement (different timing)
         bool iStallActive = (iStallLeft > 0);
 
-        // default next PC is fall-through
+        // default next PC is fall‑through
         uint64_t nextPC = PC + 4;
 
-        // ============================================================
-        // WB: MEM -> WB
+        // --------------------------------------------------------
+        // WB stage: MEM -> WB (WB alw continues)
         // During D-stall (from previous cycle), WB gets a bubble
-        // ============================================================
+        // --------------------------------------------------------
         if (dStallActive) {
             newWB = nop(BUBBLE);
         } else {
@@ -151,7 +154,7 @@ Status runCycles(uint64_t cycles) {
             if (!newWB.isLegal || newWB.memException) {
                 wbMemException = true;
                 if (simulator) simulator->disableDinCounting();
-                nextPC = newWB.nextPC;
+                nextPC = newWB.nextPC;  // should be EXCEPTION_HANDLER (0x8000)
             }
         }
 
@@ -167,9 +170,10 @@ Status runCycles(uint64_t cycles) {
         if (!dStallActive) {
             // Load-Use
             if (!oldEX.isNop && oldEX.readsMem && !oldEX.writesMem && oldEX.rd != 0 && !oldID.isNop) {
-                bool hazRs1 = (oldID.readsRs1 && oldID.rs1 == oldEX.rd);
-                bool hazRs2 = (oldID.readsRs2 && oldID.rs2 == oldEX.rd && !oldID.writesMem);
-                if (hazRs1 || hazRs2) {
+                bool hazardOnRs1 = (oldID.readsRs1 && oldID.rs1 == oldEX.rd);
+                // store data (rs2) forwarded WB->MEM; don't stall for that case
+                bool hazardOnRs2 = (oldID.readsRs2 && oldID.rs2 == oldEX.rd && !oldID.writesMem);
+                if (hazardOnRs1 || hazardOnRs2) {
                     loadUseStall = true;
                     loadUseEvent = true;
                 }
@@ -206,16 +210,16 @@ Status runCycles(uint64_t cycles) {
         bool hazardStall = loadUseStall || branchDataStall;
 
         // --------------------------------------------------------
-        // MEM stage: EX -> MEM + D-cache access
+        // MEM stage: EX -> MEM + D‑cache access
         // --------------------------------------------------------
         bool dMissThisCycle = false;
         if (dStallActive) {
-            // D-stall ongoing: hold MEM instruction
+            // still waiting on previous D miss; hold MEM instruction
             newMEM = oldMEM;
         } else if (!oldEX.isNop && oldEX.status != SQUASHED) {
             Simulator::Instruction memInput = oldEX;
 
-            // WB->MEM forwarding for store data
+            // WB -> MEM forwarding for store data (load then store)
             if (memInput.writesMem && !oldWB.isNop && oldWB.writesRd && oldWB.rd == memInput.rs2 && oldWB.rd != 0) {
                 memInput.op2Val = oldWB.readsMem ? oldWB.memResult : oldWB.arithResult;
             }
@@ -235,22 +239,23 @@ Status runCycles(uint64_t cycles) {
             newMEM = nop(oldEX.status);
         }
 
-        // ============================================================
-        // EX: ID -> EX
+        // --------------------------------------------------------
+        // EX stage: ID -> EX with forwarding (unless stalling)
         // On D-stall from previous cycle, hold EX
         // On D-miss this cycle, still move ID->EX (miss cycle advances)
         // On hazard stall, insert bubble
-        // ============================================================
+        // --------------------------------------------------------
         if (dStallActive) {
-            newEX = oldEX;
+            newEX = oldEX;  // freeze pipeline on D stall (detected or active)
         } else if (!oldID.isNop && !oldID.isLegal) {
-            newEX = nop(SQUASHED);
+            newEX = nop(SQUASHED);  // illegal squashed before EX
         } else if (hazardStall) {
+            // bubble between ID and EX when stalling on load‑use or branch dependency
             newEX = nop(BUBBLE);
         } else {
             Simulator::Instruction exInput = oldID;
 
-            // Forwarding
+            // MEM -> EX forwarding (priority)
             if (!oldEX.isNop && oldEX.writesRd && oldEX.rd != 0) {
                 uint64_t fwd = oldEX.arithResult;
                 if (exInput.readsRs1 && exInput.rs1 == oldEX.rd) exInput.op1Val = fwd;
@@ -261,6 +266,7 @@ Status runCycles(uint64_t cycles) {
                 if (exInput.readsRs1 && exInput.rs1 == oldMEM.rd && !(oldEX.writesRd && oldEX.rd == oldMEM.rd)) exInput.op1Val = fwd;
                 if (exInput.readsRs2 && exInput.rs2 == oldMEM.rd && !(oldEX.writesRd && oldEX.rd == oldMEM.rd)) exInput.op2Val = fwd;
             }
+            // WB -> EX forwarding (only if not alr forwarded from MEM)
             if (!oldWB.isNop && oldWB.writesRd && oldWB.rd != 0) {
                 uint64_t fwd = oldWB.readsMem ? oldWB.memResult : oldWB.arithResult;
                 if (exInput.readsRs1 && exInput.rs1 == oldWB.rd && !(oldEX.writesRd && oldEX.rd == oldWB.rd) && !(oldMEM.writesRd && oldMEM.rd == oldWB.rd)) exInput.op1Val = fwd;
@@ -271,11 +277,12 @@ Status runCycles(uint64_t cycles) {
             if (newEX.isNop) newEX.status = oldID.status;
         }
 
-        // ============================================================
-        // ID: IF -> ID + Branch resolution
+        // --------------------------------------------------------
+        // ID stage: IF -> ID (unless stalled)
+        // Branch hazards/resolution operate on the instruction *currently* in ID (oldID)
         // On D-stall from previous cycle with valid ID, hold ID
         // On D-miss this cycle, still move IF->ID (miss cycle advances)
-        // ============================================================
+        // --------------------------------------------------------
         Simulator::Instruction idEval = oldID;
 
         // Forwarding for branch resolution
@@ -312,8 +319,8 @@ Status runCycles(uint64_t cycles) {
             }
         }
 
-        // what moves into id
-        // d stall means id is frozen so nothing new from if
+        // What moves into ID
+        // D-stall means ID is frozen so nothing new from IF
         if (dStallActive) {
             // D-stall from previous cycle: freeze ID (hold current instruction or bubble)
             newID = oldID;
@@ -346,16 +353,12 @@ Status runCycles(uint64_t cycles) {
             if (newID.isNop && newID.status == IDLE) newID.status = oldIF.status;
         }
 
-        // ============================================================
+        // --------------------------------------------------------
         // IF: Fetch
         // On D-stall from previous cycle, freeze IF (show same instruction)
         // On I-stall from previous cycle, show bubble
         // On D-miss this cycle, still try to fetch (miss cycle advances for IF)
         // On I-miss this cycle, show bubble
-        // ============================================================
-        // --------------------------------------------------------
-        // control hazard: mark IF SPECULATIVE on taken control transfer;
-        // defer squash to next cycle so SPECULATIVE is visible in dumps
         // --------------------------------------------------------
         bool iMissThisCycle = false;
 
@@ -389,8 +392,8 @@ Status runCycles(uint64_t cycles) {
                 PC = nextPC + 4;  // Advance past target
             }
         } else if (dStallActive) {
-            // d stall active so if is frozen
-            // still might need to finish a pending i cache fetch
+            // D-stall active so IF is frozen
+            // Still might need to finish a pending I-cache fetch
             if (iStallActive) {
                 // Both stalls active: show bubble at current PC
                 newIF = nop(BUBBLE);
@@ -399,7 +402,7 @@ Status runCycles(uint64_t cycles) {
                 // I-stall just ended during D-stall: try to fetch and advance PC
                 bool iHit = iCache->access(PC, CACHE_READ);
                 if (iHit) {
-                    newIF = simulator->simIF(PC);  // PC of this instr is set by simIF
+                    newIF = simulator->simIF(PC);
                     PC = PC + 4;  // Advance for next fetch
                 } else {
                     iStallLeft = iCache->config.missLatency;
@@ -407,9 +410,8 @@ Status runCycles(uint64_t cycles) {
                     newIF.PC = PC;
                 }
             } else {
-                // Already have an instruction in IF, hold it (keep its PC)
+                // Already have an instruction in IF, hold it
                 newIF = oldIF;
-                // keep the existing pc on that instruction
             }
         } else if (hazardStall) {
             // Hazard stall: IF frozen (keep same instruction)
@@ -418,7 +420,6 @@ Status runCycles(uint64_t cycles) {
                 newIF.PC = PC;
             } else {
                 newIF = oldIF;
-                // keep the old pc value
                 if (branchDataStall) newIF.status = SPECULATIVE;
             }
         } else if (iStallActive) {
@@ -478,22 +479,32 @@ Status runCycles(uint64_t cycles) {
         // Halt detection: only when HALT reaches WB
         // --------------------------------------------------------
         if (newWB.isHalt) {
-            if (loadUseEvent) loadUseStallCount++;
-            ++cycleCount; ++count;
+            // count any pending load-use event for this cycle
+            if (loadUseEvent) {
+                loadUseStallCount++;
+            }
+
+            // final cycle is accounted for in totals
+            ++cycleCount;
+            ++count;
             status = HALT;
             break;
         }
+
         // count load-use hazard events once per hazard (includes load->branch)
-        if (loadUseEvent) loadUseStallCount++;
+        if (loadUseEvent) {
+            loadUseStallCount++;
+        }
 
         (void)iMissThisCycle;
-        ++cycleCount; ++count;
+        ++cycleCount;
+        ++count;
     }
 
     // ------------------------------------------------------------
     // Dump pipe state for the *last* simulated cycle
     // ------------------------------------------------------------
-    pipeState.cycle = cycleCount > 0 ? cycleCount - 1 : 0;
+    pipeState.cycle = (cycleCount == 0) ? 0 : cycleCount - 1;
     pipeState.ifPC = pipelineInfo.ifInst.PC;
     pipeState.ifStatus = pipelineInfo.ifInst.status;
     pipeState.idInstr = pipelineInfo.idInst.instruction;
@@ -511,12 +522,12 @@ Status runCycles(uint64_t cycles) {
 // run till halt (call runCycles() with cycles == 1 each time) until
 // status tells you to HALT or ERROR out
 Status runTillHalt() {
-    Status s;
+    Status status;
     while (true) {
-        s = static_cast<Status>(runCycles(1));
-        if (s == HALT) break;
+        status = static_cast<Status>(runCycles(1));
+        if (status == HALT) break;
     }
-    return s;
+    return status;
 }
 
 // dump the state of the simulator
@@ -526,11 +537,13 @@ Status finalizeSimulator() {
     SimulationStats stats{};  // TODO incomplete implementation
     stats.dynamicInstructions = dynRetired;
     stats.totalCycles = cycleCount;
+
     // cache hit/miss counts from cache simulator
     stats.icHits = iCache ? iCache->getHits() : 0;
     stats.icMisses = iCache ? iCache->getMisses() : 0;
     stats.dcHits = dCache ? dCache->getHits() : 0;
     stats.dcMisses = dCache ? dCache->getMisses() : 0;
+
     // load-use stalls (includes load->branch use in this simple model)
     stats.loadUseStalls = loadUseStallCount;
 
