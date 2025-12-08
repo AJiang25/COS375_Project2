@@ -367,6 +367,12 @@ Status runCycles(uint64_t cycles) {
             // Illegal instruction detected during decode
             // IF shows the wrong-path PC but doesn't access cache
             // (The instruction will be squashed next cycle anyway)
+            std::cerr << "[ICACHE] cycle " << cycleCount << " normal access PC=0x" << std::hex << PC << std::dec << std::endl;
+            bool iHit = iCache->access(PC, CACHE_READ);
+            std::cerr << (iHit ? " HIT" : " MISS") << std::endl;
+            Simulator::Instruction tempInst = simulator->simIF(PC);
+            printInstr(tempInst.instruction, NORMAL, std::cerr);
+            std::cerr << std::endl;
             newIF = nop(BUBBLE);
             newIF.PC = PC;  // show where we would fetch
             squashNextIF = true;
