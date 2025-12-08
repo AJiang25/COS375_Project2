@@ -342,7 +342,7 @@ static void handleSpecial(uint64_t curInst, std::ostream &out_stream) {
 }
 
 
-static void printIFPC(uint64_t pc, StageStatus status, std::ostream &pipeState) {
+void printIFPC(uint64_t pc, StageStatus status, std::ostream &pipeState) {
     std::ostringstream sb;
     sb << " Inst at 0x" << std::hex << pc;
     if (status == SPECULATIVE) {
@@ -351,7 +351,7 @@ static void printIFPC(uint64_t pc, StageStatus status, std::ostream &pipeState) 
     pipeState << std::left << std::setw(25) << sb.str();
 }
 
-static void printInstr(uint32_t curInst, StageStatus status, std::ostream &pipeState) {
+void printInstr(uint32_t curInst, StageStatus status, std::ostream &pipeState) {
     std::ostringstream sb;
     if (curInst == 0xfeedfeed) {
         sb << " HALT" << stageStatusStr.at(status);

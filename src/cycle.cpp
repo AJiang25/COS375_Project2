@@ -34,6 +34,7 @@ static uint64_t dStallLeft = 0;  // remaining D‑cache stall cycles
 
 // State to prevent double-counting I-cache hits on stall resume
 static bool wasIStalled = false;
+static bool justFinishedIStall = false;
 static bool stalledForHazard = false;
 
 /** Create a micro‑architectural NOP with a given stage status */
@@ -361,6 +362,7 @@ Status runCycles(uint64_t cycles) {
             newIF.status = NORMAL;
             PC = nextPC;
             iStallLeft = 0;
+            justFinishedIStall = false;
         } else if (idIllegalException) {
             // Illegal instruction detected during decode
             // IF shows the wrong-path PC but doesn't access cache
@@ -369,12 +371,17 @@ Status runCycles(uint64_t cycles) {
             newIF.PC = PC;  // show where we would fetch
             squashNextIF = true;
             PC = nextPC;  // send pc to the handler for next cycle
+            justFinishedIStall = false;
         } else if (branchTaken) {
             // Branch taken: fetch from branch target
             // The squash of wrong-path instruction happens in ID section this cycle
             // After branch resolution, the fetch is no longer speculative
             std::cerr << "[ICACHE] cycle " << cycleCount << " branch access PC=0x" << std::hex << nextPC << std::dec << std::endl;
             bool iHit = iCache->access(nextPC, CACHE_READ);
+            std::cerr << (iHit ? " HIT" : " MISS") << std::endl;
+            Simulator::Instruction tempInst = simulator->simIF(nextPC);
+            printInstr(tempInst.instruction, NORMAL, std::cerr);
+            std::cerr << std::endl;
             if (!iHit) {
                 iStallLeft = iCache->config.missLatency;
                 iMissThisCycle = true;
@@ -386,6 +393,7 @@ Status runCycles(uint64_t cycles) {
                 // Don't mark as SPECULATIVE - branch is already resolved
                 PC = nextPC + 4;  // Advance past target
             }
+            justFinishedIStall = false;
         } else if (dStallActive) {
             // D-stall active so IF is frozen
             // Still might need to finish a pending I-cache fetch
@@ -403,6 +411,7 @@ Status runCycles(uint64_t cycles) {
                 // Already have an instruction in IF, hold it
                 newIF = oldIF;
             }
+            justFinishedIStall = false;
         } else if (hazardStall) {
             // Hazard stall: IF frozen (keep same instruction)
             if (iStallActive) {
@@ -412,18 +421,25 @@ Status runCycles(uint64_t cycles) {
                 newIF = oldIF;
                 if (branchDataStall) newIF.status = SPECULATIVE;
             }
+            justFinishedIStall = false;
         } else if (iStallActive) {
             // I-stall only: show bubble
             newIF = nop(BUBBLE);
             newIF.PC = PC;
-        } else if (oldIF.isNop && oldIF.PC == PC && oldIF.status != IDLE) {
+            justFinishedIStall = true;
+        } else if (justFinishedIStall) {
             // Just finished I-stall: instruction already fetched, don't re-access cache
             newIF = simulator->simIF(PC);
             PC = PC + 4;
+            justFinishedIStall = false;
         } else {
             std::cerr << "[ICACHE] cycle " << cycleCount << " normal access PC=0x" << std::hex << PC << std::dec << std::endl;
             // Normal fetch (or D-miss this cycle - still try to fetch)
             bool iHit = iCache->access(PC, CACHE_READ);
+            std::cerr << (iHit ? " HIT" : " MISS") << std::endl;
+            Simulator::Instruction tempInst = simulator->simIF(PC);
+            printInstr(tempInst.instruction, NORMAL, std::cerr);
+            std::cerr << std::endl;
             if (!iHit) {
                 iStallLeft = iCache->config.missLatency;
                 iMissThisCycle = true;
@@ -444,6 +460,7 @@ Status runCycles(uint64_t cycles) {
                     newIF.status = SPECULATIVE;
                 }
             }
+            justFinishedIStall = false;
         }
 
         // --------------------------------------------------------
