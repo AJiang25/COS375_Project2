@@ -19,7 +19,8 @@ class Simulator {
     MemoryStore* memory;
 
     // Arch states and statistics
-    uint64_t din;  // Dynamic instruction number
+    uint64_t din;          // Dynamic instruction number
+    bool     countDin;     // Whether to keep counting dynamic instructions
 
    public:
     Simulator();
@@ -66,6 +67,7 @@ class Simulator {
 
         // known by WB
         uint64_t instructionID = 0;  // din of the instruction
+        bool     dinCounted = false; // whether this instruction was counted @ decode
 
         // Used for stage status tracking in cycle
         StageStatus status = NORMAL;
@@ -76,6 +78,8 @@ class Simulator {
     auto getMemory() { return memory; }
 
     void setMemory(MemoryStore* mem) { memory = mem; }
+    void disableDinCounting() { countDin = false; }
+    bool isDinCountingEnabled() const { return countDin; }
 
     // Simulate by functionality (project 1)
     Instruction simFetch(uint64_t PC, MemoryStore *myMem);

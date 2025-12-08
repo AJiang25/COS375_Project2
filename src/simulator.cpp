@@ -12,6 +12,7 @@ Simulator::Simulator() {
     memory = nullptr;
     regData.reg = {};
     din = 0;
+    countDin = true;
 }
 
 Simulator::~Simulator() {
@@ -466,21 +467,30 @@ Simulator::Instruction Simulator::simID(Simulator::Instruction inst) {
     // ref output has 2 legal + 1 illegal MUL; 
     // illegal MUL must be counted, treat HALT as executed instruction
     // count every non-NOP instruction as dynamic
-    // if (!inst.isNop) { 
-    //     inst.instructionID = din++;
-    // }
-
-    // FIX: Only count valid, legal instructions (avoids counting ILLEGAL instruction at 0x40)
-    if (!inst.isNop && inst.isLegal) { 
+    // count every non-NOP dynamic instruction while counting enabled
+    // track this instruction was counted so can later derive
+    // retired dynamic instructions in pipeline
+    if (!inst.isNop && countDin) {
         inst.instructionID = din++;
+        inst.dinCounted = true;
     }
 
     // Handle Exceptions?
     // Illegal instruction: exception handled via EXCEPTION_HANDLER PC
     if (!inst.isLegal) {
         inst.nextPC = EXCEPTION_HANDLER;
-        inst.status = SQUASHED; // normal will fail diff against ref output?
+        // leave stage status control to the pipeline in cycle.cpp
+        // instruction in ID should still display as ILLEGAL and not squashed
+        inst.status = NORMAL;
         return inst;
+    }
+
+    // after HALT has been decoded/counted, stop counting further
+    // dynamic instructions to ensure any instructions fetched
+    // speculatively after HALT (illegal following HALT in fib)
+    // doesn't contribute to dynamic-instruction statistics
+    if (inst.isHalt) {
+        countDin = false;
     }
 
     // collect register operands (for ALU, branches, jalr, loads/stores)
@@ -532,7 +542,9 @@ Simulator::Instruction Simulator::simWB(Simulator::Instruction inst) {
     // when they reach WB; don't write back to the architectural state
     if (!inst.isLegal || inst.memException) {
         inst.nextPC = EXCEPTION_HANDLER;
-        inst.status = SQUASHED; // normal will fail diff against ref output?
+        // let pipeline handle squashing of younger insturcionts
+        // excepting instruction itself shouldn't be marked squashed
+        inst.status = NORMAL;
         return inst;
     }
 
