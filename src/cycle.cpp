@@ -18,10 +18,6 @@ static uint64_t dynRetired = 0;
 // PC alw holds the address to be used by IF on the *next* cycle
 static uint64_t PC = 0;
 
-/**TODO: Implement pipeline simulation for the RISCV machine in this file.
- * A basic template is provided below that doesn't account for any hazards.
- */
-
 /*** Global stats we're responsible for ***/
 static uint64_t loadUseStallCount = 0;    // tracks load-use stalls
 static uint64_t loadBranchStallLeft = 0;  // tracks two-cycle load->branch stall window
@@ -37,8 +33,8 @@ static uint64_t iStallLeft = 0;  // remaining I‑cache stall cycles
 static uint64_t dStallLeft = 0;  // remaining D‑cache stall cycles
 
 // State to prevent double-counting I-cache hits on stall resume
-static bool     wasIStalled = false;
-static bool     stalledForHazard = false;
+static bool wasIStalled = false;
+static bool stalledForHazard = false;
 
 /** Create a micro‑architectural NOP with a given stage status */
 Simulator::Instruction nop(StageStatus status) {
@@ -57,7 +53,6 @@ static struct PipelineInfo {
     Simulator::Instruction memInst = nop(IDLE);
     Simulator::Instruction wbInst = nop(IDLE);
 } pipelineInfo;
-
 
 // initialize the simulator
 Status initSimulator(CacheConfig& iCacheConfig, CacheConfig& dCacheConfig, MemoryStore* mem,
@@ -93,7 +88,6 @@ Status initSimulator(CacheConfig& iCacheConfig, CacheConfig& dCacheConfig, Memor
 Status runCycles(uint64_t cycles) {
     uint64_t count = 0;
     Status status = SUCCESS;
-
     PipeState pipeState{};
 
     while (cycles == 0 || count < cycles) {
@@ -379,6 +373,7 @@ Status runCycles(uint64_t cycles) {
             // Branch taken: fetch from branch target
             // The squash of wrong-path instruction happens in ID section this cycle
             // After branch resolution, the fetch is no longer speculative
+            std::cerr << "[ICACHE] cycle " << cycleCount << " branch access PC=0x" << std::hex << nextPC << std::dec << std::endl;
             bool iHit = iCache->access(nextPC, CACHE_READ);
             if (!iHit) {
                 iStallLeft = iCache->config.missLatency;
@@ -421,7 +416,12 @@ Status runCycles(uint64_t cycles) {
             // I-stall only: show bubble
             newIF = nop(BUBBLE);
             newIF.PC = PC;
+        } else if (oldIF.isNop && oldIF.PC == PC && oldIF.status != IDLE) {
+            // Just finished I-stall: instruction already fetched, don't re-access cache
+            newIF = simulator->simIF(PC);
+            PC = PC + 4;
         } else {
+            std::cerr << "[ICACHE] cycle " << cycleCount << " normal access PC=0x" << std::hex << PC << std::dec << std::endl;
             // Normal fetch (or D-miss this cycle - still try to fetch)
             bool iHit = iCache->access(PC, CACHE_READ);
             if (!iHit) {
