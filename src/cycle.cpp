@@ -399,16 +399,11 @@ Status runCycles(uint64_t cycles) {
                 newIF = nop(BUBBLE);
                 newIF.PC = PC;
             } else if (oldIF.isNop) {
-                // I-stall just ended during D-stall: try to fetch and advance PC
-                bool iHit = iCache->access(PC, CACHE_READ);
-                if (iHit) {
-                    newIF = simulator->simIF(PC);
-                    PC = PC + 4;  // Advance for next fetch
-                } else {
-                    iStallLeft = iCache->config.missLatency;
-                    newIF = nop(BUBBLE);
-                    newIF.PC = PC;
-                }
+                // I-stall just ended during D-stall: cache block was loaded
+                // during I-stall (access counted at I-miss time)
+                // fetch instruction directly w/o re-accessing cache
+                newIF = simulator->simIF(PC);
+                PC = PC + 4;  // Advance for next fetch
             } else {
                 // Already have an instruction in IF, hold it
                 newIF = oldIF;
