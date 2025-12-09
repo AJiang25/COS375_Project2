@@ -73,7 +73,7 @@ Status initSimulator(CacheConfig& iCacheConfig, CacheConfig& dCacheConfig, Memor
     stalledForHazard = false;
     squashNextIF = false;
 
-    pipelineInfo.ifInst = nop(IDLE);
+    pipelineInfo.ifInst = nop(IDLE); 
     pipelineInfo.idInst = nop(IDLE);
     pipelineInfo.exInst = nop(IDLE);
     pipelineInfo.memInst = nop(IDLE);
@@ -104,7 +104,7 @@ Status runCycles(uint64_t cycles) {
         Simulator::Instruction oldWB = pipelineInfo.wbInst;
 
         // new pipeline registers (initialized as idle NOPs)
-        Simulator::Instruction newIF = nop(IDLE);
+        Simulator::Instruction newIF = nop(NORMAL);
         Simulator::Instruction newID = nop(IDLE);
         Simulator::Instruction newEX = nop(IDLE);
         Simulator::Instruction newMEM = nop(IDLE);
@@ -207,7 +207,6 @@ Status runCycles(uint64_t cycles) {
         // --------------------------------------------------------
         // MEM stage: EX -> MEM + D‑cache access
         // --------------------------------------------------------
-        bool dMissThisCycle = false;
         if (dStallActive) {
             // still waiting on previous D miss; hold MEM instruction
             newMEM = oldMEM;
@@ -224,7 +223,6 @@ Status runCycles(uint64_t cycles) {
                 bool dHit = dCache->access(memInput.memAddress, memInput.writesMem ? CACHE_WRITE : CACHE_READ);
                 if (!dHit) {
                     dStallLeft = dCache->config.missLatency;
-                    dMissThisCycle = true;
                 }
             }
 
@@ -333,19 +331,20 @@ Status runCycles(uint64_t cycles) {
             // I-stall from previous cycle: bubble in ID
             newID = nop(BUBBLE);
         } else if (oldIF.isNop) {
-            newID = nop(oldIF.status);
+            newID = nop(oldIF.status == IDLE ? IDLE : BUBBLE); // This is a temporary fix
         } else {
             newID = simulator->simID(oldIF);
 
             bool illegalDetected = (!newID.isLegal) ||
-                                   (newID.instruction == 0x00000000 && !newID.isNop && !newID.isHalt);
+                                   (newID.instruction == 0x00000000 && 
+                                    !newID.isNop && 
+                                    !newID.isHalt);
             if (illegalDetected) {
                 if (newID.dinCounted) dynRetired++;
                 idIllegalException = true;
                 if (simulator) simulator->disableDinCounting();
                 nextPC = newID.nextPC;
             }
-            if (newID.isNop && newID.status == IDLE) newID.status = oldIF.status;
         }
 
         // --------------------------------------------------------
@@ -359,7 +358,6 @@ Status runCycles(uint64_t cycles) {
 
         if (wbMemException) {
             newIF = simulator->simIF(nextPC);
-            newIF.status = NORMAL;
             PC = nextPC;
             iStallLeft = 0;
             justFinishedIStall = false;
@@ -367,13 +365,7 @@ Status runCycles(uint64_t cycles) {
             // Illegal instruction detected during decode
             // IF shows the wrong-path PC but doesn't access cache
             // (The instruction will be squashed next cycle anyway)
-            std::cerr << "[ICACHE] cycle " << cycleCount << " normal access PC=0x" << std::hex << PC << std::dec << std::endl;
-            bool iHit = iCache->access(PC, CACHE_READ);
-            std::cerr << (iHit ? " HIT" : " MISS") << std::endl;
-            Simulator::Instruction tempInst = simulator->simIF(PC);
-            printInstr(tempInst.instruction, NORMAL, std::cerr);
-            std::cerr << std::endl;
-            newIF = nop(BUBBLE);
+            iCache->access(PC, CACHE_READ);
             newIF.PC = PC;  // show where we would fetch
             squashNextIF = true;
             PC = nextPC;  // send pc to the handler for next cycle
@@ -382,16 +374,10 @@ Status runCycles(uint64_t cycles) {
             // Branch taken: fetch from branch target
             // The squash of wrong-path instruction happens in ID section this cycle
             // After branch resolution, the fetch is no longer speculative
-            std::cerr << "[ICACHE] cycle " << cycleCount << " branch access PC=0x" << std::hex << nextPC << std::dec << std::endl;
             bool iHit = iCache->access(nextPC, CACHE_READ);
-            std::cerr << (iHit ? " HIT" : " MISS") << std::endl;
-            Simulator::Instruction tempInst = simulator->simIF(nextPC);
-            printInstr(tempInst.instruction, NORMAL, std::cerr);
-            std::cerr << std::endl;
             if (!iHit) {
                 iStallLeft = iCache->config.missLatency;
                 iMissThisCycle = true;
-                newIF = nop(BUBBLE);
                 newIF.PC = nextPC;
                 PC = nextPC;  // hold at target until stall ends
             } else {
@@ -405,7 +391,6 @@ Status runCycles(uint64_t cycles) {
             // Still might need to finish a pending I-cache fetch
             if (iStallActive) {
                 // Both stalls active: show bubble at current PC
-                newIF = nop(BUBBLE);
                 newIF.PC = PC;
             } else if (oldIF.isNop) {
                 // I-stall just ended during D-stall: cache block was loaded
@@ -421,7 +406,6 @@ Status runCycles(uint64_t cycles) {
         } else if (hazardStall) {
             // Hazard stall: IF frozen (keep same instruction)
             if (iStallActive) {
-                newIF = nop(BUBBLE);
                 newIF.PC = PC;
             } else {
                 newIF = oldIF;
@@ -430,7 +414,6 @@ Status runCycles(uint64_t cycles) {
             justFinishedIStall = false;
         } else if (iStallActive) {
             // I-stall only: show bubble
-            newIF = nop(BUBBLE);
             newIF.PC = PC;
             justFinishedIStall = true;
         } else if (justFinishedIStall) {
@@ -439,22 +422,18 @@ Status runCycles(uint64_t cycles) {
             PC = PC + 4;
             justFinishedIStall = false;
         } else {
-            std::cerr << "[ICACHE] cycle " << cycleCount << " normal access PC=0x" << std::hex << PC << std::dec << std::endl;
             // Normal fetch (or D-miss this cycle - still try to fetch)
             bool iHit = iCache->access(PC, CACHE_READ);
-            std::cerr << (iHit ? " HIT" : " MISS") << std::endl;
-            Simulator::Instruction tempInst = simulator->simIF(PC);
-            printInstr(tempInst.instruction, NORMAL, std::cerr);
-            std::cerr << std::endl;
+            if (idIllegalException) {
+                newIF.PC = PC;  // show where we would fetch
+                squashNextIF = true;
+                PC = nextPC;  // send pc to the handler for next cycle
+                justFinishedIStall = false;
+                break;
+            }
             if (!iHit) {
                 iStallLeft = iCache->config.missLatency;
                 iMissThisCycle = true;
-                // Preserve IDLE status on first cycle, otherwise bubble
-                if (oldIF.status == IDLE) {
-                    newIF = nop(IDLE);
-                } else {
-                    newIF = nop(BUBBLE);
-                }
                 newIF.PC = PC;
             } else {
                 newIF = simulator->simIF(PC);

@@ -146,9 +146,6 @@ uint64_t sext64(uint64_t imm, int signBit);
 Status dumpPipeState(PipeState& state, const std::string& base_output_name);
 Status dumpSimStats(SimulationStats& stats, const std::string& base_output_name);
 
-void printIFPC(uint64_t pc, StageStatus /*status*/, std::ostream &pipeState);
-void printInstr(uint32_t curInst, StageStatus status, std::ostream &pipeState);
-
 // handle output file names
 inline std::string getBaseFilename(const char* inputPath) {
     std::string path(inputPath);
