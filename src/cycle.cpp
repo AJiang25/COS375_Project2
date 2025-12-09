@@ -314,14 +314,11 @@ Status runCycles(uint64_t cycles) {
 
         // What moves into ID
         // D-stall means ID is frozen so nothing new from IF
-        if (dStallActive) {
+        if (dStallActive || hazardStall) {
             // D-stall from previous cycle: freeze ID (hold current instruction or bubble)
             newID = oldID;
         } else if (applyDeferredSquash) {
             newID = nop(SQUASHED);
-        } else if (hazardStall) {
-            // Hazard stall: hold ID
-            newID = oldID;
         } else if (branchTaken && !idIllegalException && !wbMemException) {
             // Branch taken: squash the speculative instruction in IF
             // Don't set squashNextIF - the squash happens this cycle, not next
