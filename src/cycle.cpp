@@ -104,7 +104,8 @@ Status runCycles(uint64_t cycles) {
         Simulator::Instruction oldWB = pipelineInfo.wbInst;
 
         // new pipeline registers (initialized as idle NOPs)
-        Simulator::Instruction newIF = nop(NORMAL);
+        Simulator::Instruction newIF = nop(IDLE);
+        std::cerr << "newIF's status: " << newIF.status << std::endl;
         Simulator::Instruction newID = nop(IDLE);
         Simulator::Instruction newEX = nop(IDLE);
         Simulator::Instruction newMEM = nop(IDLE);
@@ -199,6 +200,10 @@ Status runCycles(uint64_t cycles) {
                 }
             }
         }
+
+        // Test if Mem Stage is loading and the register is being used 
+        // in to the decode stage, stall again
+        // test both if execution and memory coincides with decode, get rid of counter 
 
         // Continue stall through remaining load->branch stall cycles
         if (loadBranchStallLeft > 0) branchDataStall = true;
@@ -364,6 +369,7 @@ Status runCycles(uint64_t cycles) {
             // (The instruction will be squashed next cycle anyway)
             iCache->access(PC, CACHE_READ);
             newIF.PC = PC;  // show where we would fetch
+            newIF.status = NORMAL;
             squashNextIF = true;
             PC = nextPC;  // send pc to the handler for next cycle
             justFinishedIStall = false;
@@ -389,6 +395,7 @@ Status runCycles(uint64_t cycles) {
             if (iStallActive) {
                 // Both stalls active: show bubble at current PC
                 newIF.PC = PC;
+                newIF.status = NORMAL;
             } else if (oldIF.isNop) {
                 // I-stall just ended during D-stall: cache block was loaded
                 // during I-stall (access counted at I-miss time)
@@ -404,6 +411,7 @@ Status runCycles(uint64_t cycles) {
             // Hazard stall: IF frozen (keep same instruction)
             if (iStallActive) {
                 newIF.PC = PC;
+                newIF.status = NORMAL;
             } else {
                 newIF = oldIF;
                 if (branchDataStall) newIF.status = SPECULATIVE;
@@ -412,6 +420,7 @@ Status runCycles(uint64_t cycles) {
         } else if (iStallActive) {
             // I-stall only: show bubble
             newIF.PC = PC;
+            newIF.status = NORMAL;
             justFinishedIStall = true;
         } else if (justFinishedIStall) {
             // Just finished I-stall: instruction already fetched, don't re-access cache
@@ -432,6 +441,7 @@ Status runCycles(uint64_t cycles) {
                 iStallLeft = iCache->config.missLatency;
                 iMissThisCycle = true;
                 newIF.PC = PC;
+                newIF.status = NORMAL;
             } else {
                 newIF = simulator->simIF(PC);
                 PC = PC + 4;
