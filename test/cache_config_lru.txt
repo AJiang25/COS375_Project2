@@ -1,0 +1,9 @@
+512        # [ICache] 512B instruction cache (small program fits)
+16         #          16B block size
+4          #          4-way set associative
+0          #          0-cycle miss penalty (no I-stall)
+512        # [DCache] 512B data cache
+16         #          16B block size
+4          #          4-way set associative
+1          #          1-cycle miss penalty (easy to see stalls)
+
