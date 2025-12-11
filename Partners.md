@@ -15,7 +15,7 @@
 
 ### How many additional test cases did you write to test your implementation?
 
-- Number of test cases: 12 (including 2 provided from the public test cases Ed discussion)
+- Number of test cases: 10 (12 if you include the two provided from the public test cases Ed discussion)
     - alu_branch_stall.s
     - jalr_hazard_taken.s
     - load_branch_zero_taken.s
