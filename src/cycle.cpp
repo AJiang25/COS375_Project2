@@ -20,7 +20,6 @@ static uint64_t PC = 0;
 
 /*** Global stats we're responsible for ***/
 static uint64_t loadUseStallCount = 0;    // tracks load-use stalls
-static uint64_t loadBranchStallLeft = 0;  // tracks two-cycle load->branch stall window
 static bool     squashNextIF = false;     // pending squash of speculative IF
 
 // Cache stall counters (can overlap):
@@ -67,7 +66,6 @@ Status initSimulator(CacheConfig& iCacheConfig, CacheConfig& dCacheConfig, Memor
     dynRetired = 0;
     PC = 0;
     loadUseStallCount = 0;
-    loadBranchStallLeft = 0;
     iStallLeft = dStallLeft = 0;
     wasIStalled = false;
     stalledForHazard = false;
@@ -105,7 +103,6 @@ Status runCycles(uint64_t cycles) {
 
         // new pipeline registers (initialized as idle NOPs)
         Simulator::Instruction newIF = nop(IDLE);
-        std::cerr << "newIF's status: " << newIF.status << std::endl;
         Simulator::Instruction newID = nop(IDLE);
         Simulator::Instruction newEX = nop(IDLE);
         Simulator::Instruction newMEM = nop(IDLE);
@@ -125,7 +122,6 @@ Status runCycles(uint64_t cycles) {
         // decrement counters for this cycle (all can count down together)
         if (iStallLeft > 0) iStallLeft--;
         if (dStallLeft > 0) dStallLeft--;
-        if (loadBranchStallLeft > 0) loadBranchStallLeft--;
 
         // I-cache: check AFTER decrement (different timing)
         bool iStallActive = (iStallLeft > 0);
@@ -162,51 +158,67 @@ Status runCycles(uint64_t cycles) {
         bool loadUseEvent = false;  // count stats once per hazard
         bool branchDataStall = false;
 
-        // Load-Use Hazard Detection
-        if (!dStallActive) {
-            // Load-Use
-            if (!oldEX.isNop && oldEX.readsMem && !oldEX.writesMem && oldEX.rd != 0 && !oldID.isNop) {
+       if (!dStallActive) {
+            bool idIsBranchLike =
+                (!oldID.isNop &&
+                 (oldID.opcode == OP_BRANCH || oldID.opcode == OP_JALR));
+
+            // ------------------------
+            // Generic load-use hazard
+            // ------------------------
+            if (!oldEX.isNop &&
+                oldEX.readsMem && !oldEX.writesMem &&
+                oldEX.rd != 0 &&
+                !oldID.isNop &&
+                !idIsBranchLike) {
+
                 bool hazardOnRs1 = (oldID.readsRs1 && oldID.rs1 == oldEX.rd);
-                // store data (rs2) forwarded WB->MEM; don't stall for that case
                 bool hazardOnRs2 = (oldID.readsRs2 && oldID.rs2 == oldEX.rd && !oldID.writesMem);
+
                 if (hazardOnRs1 || hazardOnRs2) {
                     loadUseStall = true;
                     loadUseEvent = true;
                 }
             }
 
-            // Branch-Data Hazard Check (Arith-Branch & Load-Branch)
-            // Check hazards for instr currently in ID (oldID)
-            if (!loadUseStall && !oldID.isNop) {
-                bool isBranch = (oldID.opcode == OP_BRANCH);
-                bool isJalr = (oldID.opcode == OP_JALR);
-                if (isBranch || isJalr) {
-                    if (!oldEX.isNop && oldEX.rd != 0) {
-                        bool depRs1 = (oldID.readsRs1 && oldID.rs1 == oldEX.rd);
-                        bool depRs2 = (oldID.readsRs2 && oldID.rs2 == oldEX.rd);
-                        if (depRs1 || depRs2) {
-                            if (oldEX.readsMem) {
-                                branchDataStall = true;
-                                if (loadBranchStallLeft == 0) {
-                                    loadBranchStallLeft = 2;  // two-cycle stall window
-                                    loadUseEvent = true;      // count once per hazard
-                                }
-                            } else if (oldEX.writesRd) {
-                                branchDataStall = true;
-                                if (loadBranchStallLeft == 0) loadBranchStallLeft = 1;
-                            }
+            // ------------------------
+            // 2) Branch-data hazards (arith->branch & load->branch)
+            // ------------------------
+            if (idIsBranchLike) {
+                // Ex
+                if (!oldEX.isNop && oldEX.rd != 0 && oldEX.writesRd) {
+                    bool depRs1 = (oldID.readsRs1 && oldID.rs1 == oldEX.rd);
+                    bool depRs2 = (oldID.readsRs2 && oldID.rs2 == oldEX.rd);
+
+                    if (depRs1 || depRs2) {
+                        if (oldEX.readsMem && !oldEX.writesMem) {
+                            // load->branch: stall and count as load-use
+                            branchDataStall = true;
+                            loadUseEvent    = true;
+                        } else {
+                            // ALU->branch: 1 stall
+                            branchDataStall = true;
                         }
+                    }
+                }
+                // Mem
+                if (!branchDataStall &&
+                    !oldMEM.isNop && oldMEM.rd != 0 &&
+                    oldMEM.writesRd && oldMEM.readsMem && !oldMEM.writesMem) {
+
+                    bool depRs1 = (oldID.readsRs1 && oldID.rs1 == oldMEM.rd);
+                    bool depRs2 = (oldID.readsRs2 && oldID.rs2 == oldMEM.rd);
+
+                    if (depRs1 || depRs2) {
+                        // load->branch: this is the second stall (MEM stage)
+                        branchDataStall = true;
+                        loadUseEvent    = true;  // count as load-use stall
                     }
                 }
             }
         }
 
-        // Test if Mem Stage is loading and the register is being used 
-        // in to the decode stage, stall again
-        // test both if execution and memory coincides with decode, get rid of counter 
-
         // Continue stall through remaining load->branch stall cycles
-        if (loadBranchStallLeft > 0) branchDataStall = true;
         bool hazardStall = loadUseStall || branchDataStall;
 
         // --------------------------------------------------------
