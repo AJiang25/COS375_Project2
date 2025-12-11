@@ -11,11 +11,21 @@
 
 ### Approximately how many hours did it take you to complete this assignment?
 
-- Number of hours: 1 + 6 + 10 + 14 + 6 + 4
+- Number of hours: 1 + 6 + 10 + 14 + 6 + 4 + 4 + 8 + 14 + 12 + 3 + 4 + 2
 
 ### How many additional test cases did you write to test your implementation?
 
-- Number of test cases: [n tests]
+- Number of test cases: 12 (including 2 provided from the public test cases Ed discussion)
+    - alu_branch_stall.s
+    - jalr_hazard_taken.s
+    - load_branch_zero_taken.s
+    - load_store_forward_no_stall.s
+    - load_to_store_forward.s
+    - load_use_arith_stall.s
+    - mem_exception_load.s
+    - mem_exception_squash.s
+    - lbtakencachehit.s
+    - lbtakencachemiss.s
 
 ## Challenges Encountered
 

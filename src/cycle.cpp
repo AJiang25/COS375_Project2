@@ -135,11 +135,21 @@ Status runCycles(uint64_t cycles) {
         // --------------------------------------------------------
         if (dStallActive) {
             newWB = nop(BUBBLE);
+        } else if (!oldMEM.isNop && oldMEM.memException) {
+            // memory exception detected in MEM; squash before WB
+            if (oldMEM.dinCounted) {
+                dynRetired++;  // count the faulting memory op once
+            }
+            wbMemException = true;
+            if (simulator) simulator->disableDinCounting();
+            nextPC = 0x8000;  // exception handler address
+            newWB = nop(SQUASHED);
         } else {
             newWB = simulator->simWB(oldMEM);
             if (newWB.isNop) newWB.status = oldMEM.status;
 
-            if (!newWB.isNop && newWB.isLegal && !newWB.memException && newWB.dinCounted) {
+            // count dynamic instructions once they reach WB
+            if (!newWB.isNop && newWB.dinCounted && newWB.isLegal && !newWB.memException) {
                 dynRetired++;
             }
 
@@ -185,6 +195,9 @@ Status runCycles(uint64_t cycles) {
             // 2) Branch-data hazards (arith->branch & load->branch)
             // ------------------------
             if (idIsBranchLike) {
+                // if EX is bubble inserted by prior branch stall, we're in the
+                // second cycle of a load->branch stall; don't double-count load stalls
+                bool exBubbleFromBranchStall = oldEX.isNop && oldEX.status == BUBBLE;
                 // Ex
                 if (!oldEX.isNop && oldEX.rd != 0 && oldEX.writesRd) {
                     bool depRs1 = (oldID.readsRs1 && oldID.rs1 == oldEX.rd);
@@ -212,7 +225,9 @@ Status runCycles(uint64_t cycles) {
                     if (depRs1 || depRs2) {
                         // load->branch: this is the second stall (MEM stage)
                         branchDataStall = true;
-                        loadUseEvent    = true;  // count as load-use stall
+                        if (!exBubbleFromBranchStall) {
+                            loadUseEvent = true;  // count once per dependent load
+                        }
                     }
                 }
             }
@@ -306,6 +321,21 @@ Status runCycles(uint64_t cycles) {
                 uint64_t fwd = newWB.readsMem ? newWB.memResult : newWB.arithResult;
                 if (idEval.readsRs1 && idEval.rs1 == newWB.rd && !(newMEM.writesRd && newMEM.rd == newWB.rd)) idEval.op1Val = fwd;
                 if (idEval.readsRs2 && idEval.rs2 == newWB.rd && !(newMEM.writesRd && newMEM.rd == newWB.rd)) idEval.op2Val = fwd;
+            }
+            // after 2-cycle load->branch stall, the load is in oldWB
+            // forward from oldWB so the branch sees the loaded value
+            if (!oldWB.isNop && oldWB.writesRd && oldWB.rd != 0) {
+                uint64_t fwd = oldWB.readsMem ? oldWB.memResult : oldWB.arithResult;
+                if (idEval.readsRs1 && idEval.rs1 == oldWB.rd &&
+                    !(newMEM.writesRd && newMEM.rd == oldWB.rd) &&
+                    !(newWB.writesRd && newWB.rd == oldWB.rd)) {
+                    idEval.op1Val = fwd;
+                }
+                if (idEval.readsRs2 && idEval.rs2 == oldWB.rd &&
+                    !(newMEM.writesRd && newMEM.rd == oldWB.rd) &&
+                    !(newWB.writesRd && newWB.rd == oldWB.rd)) {
+                    idEval.op2Val = fwd;
+                }
             }
         }
 

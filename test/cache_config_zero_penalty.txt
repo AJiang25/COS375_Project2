@@ -1,0 +1,8 @@
+2048        # 2K Instruction Cache
+16          # 16 byte block size (I-Cache)
+2           # 2-way set associative (I-Cache)
+0           # 0 cycle miss penalty (I-Cache) -- isolate hazards
+4096        # 4K Data Cache
+16          # 16 byte block size (D-Cache)
+4           # 4-way set associative (D-Cache)
+0           # 0 cycle miss penalty (D-Cache) -- isolate hazards
