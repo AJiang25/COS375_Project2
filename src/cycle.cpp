@@ -137,25 +137,23 @@ Status runCycles(uint64_t cycles) {
             newWB = nop(BUBBLE);
         } else if (!oldMEM.isNop && oldMEM.memException) {
             // memory exception detected in MEM; squash before WB
-            if (oldMEM.dinCounted) {
-                dynRetired++;  // count the faulting memory op once
-            }
+            // PER ED: only instructions that complete WB are counted
             wbMemException = true;
-            if (simulator) simulator->disableDinCounting();
             nextPC = 0x8000;  // exception handler address
             newWB = nop(SQUASHED);
         } else {
             newWB = simulator->simWB(oldMEM);
             if (newWB.isNop) newWB.status = oldMEM.status;
 
-            // count dynamic instructions once they reach WB
-            if (!newWB.isNop && newWB.dinCounted && newWB.isLegal && !newWB.memException) {
+            // PER ED: count dynamic instructions
+            // an instruction contributes iff its in source binary and completes WB
+            // microarchitectural NOPs/bubbles are marked isNop=true and won't count
+            if (!newWB.isNop && newWB.isLegal && !newWB.memException) {
                 dynRetired++;
             }
 
             if (!newWB.isLegal || newWB.memException) {
                 wbMemException = true;
-                if (simulator) simulator->disableDinCounting();
                 nextPC = newWB.nextPC;  // should be EXCEPTION_HANDLER (0x8000)
             }
         }
@@ -251,14 +249,27 @@ Status runCycles(uint64_t cycles) {
             }
 
             if (memInput.readsMem || memInput.writesMem) {
+                // address generation (no side‑effects)
                 memInput = simulator->simAddrGen(memInput);
-                bool dHit = dCache->access(memInput.memAddress, memInput.writesMem ? CACHE_WRITE : CACHE_READ);
-                if (!dHit) {
-                    dStallLeft = dCache->config.missLatency;
+
+                // PER ED: memory exceptions are detected immediately and do
+                // NOT incur cache misses/penalties ; perform functional MEM access first,
+                // then only model cache timing if no exception occurred
+                Simulator::Instruction memAfterAccess = simulator->simMEM(memInput);
+
+                if (!memAfterAccess.memException && memAfterAccess.isLegal) {
+                    bool dHit = dCache->access(memInput.memAddress,
+                                              memInput.writesMem ? CACHE_WRITE : CACHE_READ);
+                    if (!dHit) {
+                        dStallLeft = dCache->config.missLatency;
+                    }
                 }
+
+                newMEM = memAfterAccess;
+            } else {
+                newMEM = simulator->simMEM(memInput);
             }
 
-            newMEM = simulator->simMEM(memInput);
             if (newMEM.isNop) newMEM.status = oldEX.status;
         } else {
             newMEM = nop(oldEX.status);
@@ -342,7 +353,6 @@ Status runCycles(uint64_t cycles) {
         // Only trigger exception if not already squashing (from previous exception/branch)
         if (!applyDeferredSquash && !oldID.isNop && !oldID.isLegal) {
             idIllegalException = true;
-            if (simulator) simulator->disableDinCounting();
             nextPC = oldID.nextPC;
         }
 
@@ -384,9 +394,7 @@ Status runCycles(uint64_t cycles) {
                                     !newID.isNop && 
                                     !newID.isHalt);
             if (illegalDetected) {
-                if (newID.dinCounted) dynRetired++;
                 idIllegalException = true;
-                if (simulator) simulator->disableDinCounting();
                 nextPC = newID.nextPC;
             }
         }
