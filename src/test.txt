@@ -1,0 +1,35 @@
+make clean && make sim_cycle tests
+
+run_test () {
+  name="$1"
+  cfg="$2"
+  echo
+  echo "=============================="
+  echo "RUN ${name}  (config: ${cfg})"
+  echo "=============================="
+  ./sim_cycle "test/${name}.bin" "${cfg}"
+  echo "--- sim_stats ---"
+  cat "test/${name}_cycle_sim_stats.out"
+  echo "--- reg_state ---"
+  cat "test/${name}_cycle_reg_state.out"
+}
+
+# run every assembly test in test/ (auto-pick config)
+DEFAULT_CFG="test/cache_config.txt"
+LRU_CFG="test/cache_config_lru.txt"
+
+
+for s in test/*.s; do
+  name="$(basename "${s}" .s)"
+  cfg="${DEFAULT_CFG}"
+  if [ "${name}" = "dcache_lru" ]; then
+    cfg="${LRU_CFG}"
+  fi
+  run_test "${name}" "${cfg}"
+done
+
+# OPT: hazard-only reruns with zero-penalty caches
+# ZERO_CFG="test/cache_config_zero_penalty.txt"
+# for t in loadbranch load_use_arith_stall load_branch_zero_taken alu_branch_stall jalr_hazard_taken load_to_store_forward; do
+#   run_test "${t}" "${ZERO_CFG}"
+# done
