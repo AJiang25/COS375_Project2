@@ -409,9 +409,21 @@ Status runCycles(uint64_t cycles) {
         bool iMissThisCycle = false;
 
         if (wbMemException) {
-            newIF = simulator->simIF(nextPC);
-            PC = nextPC;
+            // PER ED: redirect to exception handler immediately. don't wait for
+            // any pending I-cache miss on the wrong path, but still model I-cache
+            // timing for the handler fetch
             iStallLeft = 0;
+            bool iHit = iCache->access(nextPC, CACHE_READ);
+            if (!iHit) {
+                iStallLeft = iCache->config.missLatency;
+                iMissThisCycle = true;
+                newIF.PC = nextPC;
+                newIF.status = NORMAL;
+                PC = nextPC;  // hold at handler PC until miss clears
+            } else {
+                newIF = simulator->simIF(nextPC);
+                PC = nextPC + 4;
+            }
             justFinishedIStall = false;
         } else if (idIllegalException) {
             // Illegal instruction detected during decode
