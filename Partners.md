@@ -15,7 +15,7 @@
 
 ### How many additional test cases did you write to test your implementation?
 
-- Number of test cases: 22? (including the ones provided from the public Ed Discussion)
+- Number of test cases: 24 (including the ones provided from the public Ed Discussion)
     - alu_branch_stall.s
     - jalr_hazard_taken.s
     - load_branch_zero_taken.s
@@ -26,6 +26,9 @@
     - mem_exception_squash.s
     - lbtakencachehit.s
     - lbtakencachemiss.s
+    - exception2.s
+    - exception3.s
+    - icache.s
     - tough_test.s
     - wb_mem_forwarding.s
 
@@ -57,7 +60,7 @@ Everything. This project was horrible. I, Ammaar Alam, speaking for myself only,
 - Refer to the syllabus generative AI tools policy: the policy for use of AI assistants parallels that for human collaboration. Remember that you cannot directly generate code that you submit. 
 - Write "N/A" if you did not use generative AI for any help during this project.
 
-- [describe how you used generate AI or N/A]
+- I used ChatGPT to better understand the what each of the files were and how they worked together /s/ Arnold Jiang
 
 ## Acknowledgement of Original Work
 
