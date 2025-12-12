@@ -11,11 +11,11 @@
 
 ### Approximately how many hours did it take you to complete this assignment?
 
-- Number of hours: 1 + 6 + 10 + 14 + 6 + 4 + 4 + 8 + 14 + 12 + 3 + 4 + 2 + 30
+- Number of hours: 1 + 6 + 10 + 14 + 6 + 4 + 4 + 8 + 14 + 12 + 3 + 4 + 2 + 30 + 2
 
 ### How many additional test cases did you write to test your implementation?
 
-- Number of test cases: 10 (12 if you include the two provided from the public test cases Ed discussion)
+- Number of test cases: 22? (including the ones provided from the public Ed Discussion)
     - alu_branch_stall.s
     - jalr_hazard_taken.s
     - load_branch_zero_taken.s
@@ -26,6 +26,8 @@
     - mem_exception_squash.s
     - lbtakencachehit.s
     - lbtakencachemiss.s
+    - tough_test.s
+    - wb_mem_forwarding.s
 
 ## Challenges Encountered
 
@@ -33,6 +35,7 @@
 
 - [Yes/No]
 - [If yes, please describe the problems encountered]
+Everything. This project was horrible. I, Ammaar Alam, speaking for myself only, would like to make it known that I wish the faculty who devised this project to all stub their toes.
 
 ## Additional Comments
 
