@@ -11,7 +11,7 @@
 
 ### Approximately how many hours did it take you to complete this assignment?
 
-- Number of hours: 1 + 6 + 10 + 14 + 6 + 4 + 4 + 8 + 14 + 12 + 3 + 4 + 2
+- Number of hours: 1 + 6 + 10 + 14 + 6 + 4 + 4 + 8 + 14 + 12 + 3 + 4 + 2 + 30
 
 ### How many additional test cases did you write to test your implementation?
 
